@@ -1,0 +1,514 @@
+<div class="space-y-4 max-w-[1600px] mx-auto pb-6 relative">
+  
+  @if (isLoading()) {
+    <div class="fixed inset-0 bg-white/80 backdrop-blur-md z-[9999] flex items-center justify-center">
+      <app-loader message="Generating Business Insights..."></app-loader>
+    </div>
+  }
+
+  <!-- Header -->
+  <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+    <div>
+      <h1 class="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight flex items-center gap-2">
+        {{ ts.t('dash.title') }}
+      </h1>
+      <p class="text-slate-500 font-medium text-sm mt-1 flex items-center gap-1.5">
+        <span class="material-icons-outlined text-sm">storefront</span>
+        {{ ts.currentLang() === 'hi' ? 'वास्तविक समय व्यापार प्रदर्शन एवं विश्लेषण' : 'Real-time business performance & analytics' }}
+      </p>
+    </div>
+  </div>
+
+
+  <!-- KPI Stat Cards Grid (4 Cards) -->
+  <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+    @for (stat of [
+      { label: ts.t('dash.todaySales'), val: kpiCardsData().totalSale | currency:'INR', icon: 'account_balance_wallet', bgIcon: 'bg-emerald-100 text-emerald-600', textLabel: 'text-emerald-600', border: 'border-emerald-200 hover:border-emerald-400', blob: 'bg-emerald-500', path: '/sales' },
+      { label: ts.t('nav.expenses'), val: kpiCardsData().totalExpenses | currency:'INR', icon: 'payments', bgIcon: 'bg-rose-100 text-rose-600', textLabel: 'text-rose-600', border: 'border-rose-200 hover:border-rose-400', blob: 'bg-rose-500', path: '/expenses' },
+      { label: ts.currentLang() === 'hi' ? 'उधार बकाया' : 'Udhar (Pending)', val: kpiCardsData().udhar | currency:'INR', icon: 'pending_actions', bgIcon: 'bg-amber-100 text-amber-600', textLabel: 'text-amber-600', border: 'border-amber-200 hover:border-amber-400', blob: 'bg-amber-500', path: '/sales' },
+      { label: ts.currentLang() === 'hi' ? 'कुल खरीदारी' : 'Total Purchase', val: kpiCardsData().totalPurchase | currency:'INR', icon: 'local_shipping', bgIcon: 'bg-indigo-100 text-indigo-600', textLabel: 'text-indigo-600', border: 'border-indigo-200 hover:border-indigo-400', blob: 'bg-indigo-500', path: '/purchases' }
+    ]; track stat.label) {
+      <a [routerLink]="stat.path" class="group bg-white p-4 sm:p-5 rounded-2xl border shadow-xs hover:shadow-md transition-all duration-200 flex flex-col justify-between overflow-hidden relative {{stat.border}}">
+        <div class="absolute -right-4 -top-4 w-16 h-16 rounded-full opacity-10 group-hover:scale-150 transition-transform duration-700 {{stat.blob}}"></div>
+        <div class="flex items-start justify-between relative z-10">
+          <div>
+            <p class="text-xs font-bold uppercase tracking-wider mb-1 {{stat.textLabel}}">{{ stat.label }}</p>
+            <h2 class="text-xl sm:text-2xl font-extrabold text-slate-900 group-hover:text-slate-700 transition-colors">{{ stat.val }}</h2>
+          </div>
+          <div class="p-2.5 rounded-xl transition-colors {{stat.bgIcon}} shrink-0">
+            <span class="material-icons-outlined text-xl">{{ stat.icon }}</span>
+          </div>
+        </div>
+        <div class="mt-3 flex items-center gap-1 text-[11px] font-semibold text-slate-400 group-hover:text-slate-600 transition-colors relative z-10">
+          <span>{{ ts.currentLang() === 'hi' ? 'प्रविष्टियां प्रबंधित करें' : 'Manage entries' }}</span>
+          <span class="material-icons-outlined text-xs">arrow_forward</span>
+        </div>
+      </a>
+    }
+  </div>
+
+  <!-- EXACTLY 2 ALIGNED CHARTS SIDE-BY-SIDE -->
+  <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+    
+    <!-- Chart 1: Profit & Loss Doughnut -->
+    <div class="bg-white rounded-2xl border border-slate-200/80 shadow-xs overflow-hidden flex flex-col h-full">
+      <div class="p-4 sm:p-5 border-b border-slate-100 flex items-center justify-between gap-4 bg-slate-50/50 shrink-0">
+        <div>
+          <h3 class="text-base font-extrabold text-slate-900 flex items-center gap-2">
+            <span class="material-icons-outlined text-emerald-600">pie_chart</span>
+            {{ ts.currentLang() === 'hi' ? 'लाभ और हानि वित्तीय विवरण' : 'Profit & Loss Financial Breakdown' }}
+          </h3>
+          <p class="text-xs text-slate-500 font-semibold mt-0.5">
+            {{ ts.currentLang() === 'hi' ? 'कुल बिक्री, खर्चे और खरीदारी का विवरण' : 'Distribution of Total Sales, Expenses, and Purchases' }}
+          </p>
+        </div>
+      </div>
+      <div class="p-5 flex-1 flex flex-col items-center justify-center min-h-[300px]">
+        <div #pnlChart class="w-full h-[280px]"></div>
+        @if (kpiCardsData().totalSale === 0 && kpiCardsData().totalExpenses === 0 && kpiCardsData().totalPurchase === 0) {
+          <div class="text-center text-slate-500 py-8 relative z-10">
+            <span class="material-icons-outlined text-4xl text-slate-300 mb-2">analytics</span>
+            <p class="font-semibold text-sm">{{ ts.currentLang() === 'hi' ? 'अभी तक कोई वित्तीय डेटा दर्ज नहीं है।' : 'No financial data recorded yet.' }}</p>
+          </div>
+        }
+      </div>
+    </div>
+
+    <!-- Chart 2: Monthly Sales Revenue Bar Chart -->
+    <div class="bg-white rounded-2xl border border-slate-200/80 shadow-xs overflow-hidden flex flex-col h-full">
+      <div class="p-4 sm:p-5 border-b border-slate-100 flex items-center justify-between gap-4 bg-slate-50/50 shrink-0">
+        <div>
+          <h3 class="text-base font-extrabold text-slate-900 flex items-center gap-2">
+            <span class="material-icons-outlined text-indigo-600">bar_chart</span>
+            {{ ts.currentLang() === 'hi' ? 'मासिक बिक्री राजस्व प्रवृत्ति' : 'Monthly Sales Revenue Trend' }}
+          </h3>
+          <p class="text-xs text-slate-500 font-semibold mt-0.5">
+            {{ ts.currentLang() === 'hi' ? 'पिछले 12 महीनों का राजस्व रुझान' : 'Historical revenue comparison across past 12 months' }}
+          </p>
+        </div>
+      </div>
+      <div class="p-5 flex-1 flex flex-col items-center justify-center min-h-[300px]">
+        <div #monthlySalesChart class="w-full h-[280px]"></div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Main Tables Grid -->
+  <div class="grid grid-cols-1 xl:grid-cols-12 gap-6">
+    
+    <!-- Left 6 Columns: Top Selling Items Table -->
+    <div class="xl:col-span-6 flex flex-col">
+      <div class="bg-white rounded-2xl border border-slate-200/80 shadow-xs overflow-hidden flex flex-col h-full">
+        <div class="p-4 sm:p-5 border-b border-slate-100 flex items-center justify-between gap-4 bg-slate-50/50 shrink-0">
+          <div>
+            <h3 class="text-base font-extrabold text-slate-900 flex items-center gap-2">
+              <span class="material-icons-outlined text-indigo-600">inventory_2</span>
+              {{ ts.t('dash.topSellingItems') }}
+            </h3>
+            <p class="text-xs text-slate-500 font-semibold mt-0.5">{{ ts.t('dash.topSellingDesc') }}</p>
+          </div>
+          <a routerLink="/inventory" class="text-[11px] font-bold text-indigo-600 hover:text-indigo-700 bg-indigo-50 hover:bg-indigo-100 px-2.5 py-1 rounded-lg transition-colors">{{ ts.t('dash.viewInventory') }}</a>
+        </div>
+        
+        <div class="flex-1 overflow-x-auto hidden md:block">
+          <table class="w-full min-w-[360px] text-left border-collapse">
+            <thead>
+              <tr class="bg-slate-100/80 border-y border-slate-200 text-[11px] font-extrabold text-slate-700 uppercase tracking-wider">
+                <th class="py-2.5 px-3 pl-4">{{ ts.t('dash.productDetails') }}</th>
+                <th class="py-2.5 px-3 text-center">{{ ts.t('dash.qtySold') }}</th>
+                <th class="py-2.5 px-3 text-right pr-4">{{ ts.t('dash.revenue') }}</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-100 text-sm bg-white">
+              @for (item of topSellingProducts(); track item.product.id) {
+                <tr class="hover:bg-slate-50/50 transition-colors group">
+                  <td class="py-2.5 px-3 pl-4">
+                    <div class="flex items-center gap-2.5">
+                      <div class="w-8 h-8 rounded-lg overflow-hidden bg-slate-100 border border-slate-200/60 shrink-0 shadow-xs flex items-center justify-center text-slate-400">
+                        @if (item.product.imageUrl || (item.product.imageUrls && item.product.imageUrls.length > 0)) {
+                          <img [src]="item.product.imageUrl || item.product.imageUrls[0]" [alt]="item.product.name" class="w-full h-full object-cover" referrerpolicy="no-referrer">
+                        } @else {
+                          <span class="material-icons-outlined text-sm">image</span>
+                        }
+                      </div>
+                      <div>
+                        <p class="font-bold text-slate-900 group-hover:text-indigo-600 transition-colors text-xs leading-tight">{{ item.product.name }}</p>
+                        <p class="text-[10px] font-semibold text-slate-500 leading-none mt-0.5">{{ item.product.category }}</p>
+                      </div>
+                    </div>
+                  </td>
+                  <td class="py-2.5 px-3 text-center">
+                    <span class="inline-flex items-center justify-center px-2.5 py-1 rounded-md bg-indigo-50 text-indigo-700 font-extrabold text-xs">
+                      {{ item.quantity }}
+                    </span>
+                  </td>
+                  <td class="py-2.5 px-3 pr-4 text-right font-black text-slate-900 text-xs">
+                    {{ item.revenue | currency:'INR' }}
+                  </td>
+                </tr>
+              }
+              @if (topSellingProducts().length === 0) {
+                <tr>
+                  <td colspan="3" class="p-8 text-center text-slate-500">
+                    <span class="material-icons-outlined text-4xl text-slate-300 mb-2">inventory_2</span>
+                    <p class="font-semibold text-sm">No sales data recorded yet.</p>
+                  </td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+
+        <!-- Mobile Card View -->
+        <div class="flex-1 md:hidden divide-y divide-slate-100 bg-white">
+          @for (item of topSellingProducts(); track item.product.id) {
+            <div class="p-4 flex items-center justify-between gap-3">
+              <div class="flex items-center gap-3 min-w-0 flex-1">
+                <div class="w-10 h-10 rounded-xl overflow-hidden bg-slate-100 border border-slate-200/60 shrink-0 shadow-xs flex items-center justify-center text-slate-400">
+                  @if (item.product.imageUrl || (item.product.imageUrls && item.product.imageUrls.length > 0)) {
+                    <img [src]="item.product.imageUrl || item.product.imageUrls[0]" [alt]="item.product.name" class="w-full h-full object-cover" referrerpolicy="no-referrer">
+                  } @else {
+                    <span class="material-icons-outlined text-base">image</span>
+                  }
+                </div>
+                <div class="min-w-0">
+                  <p class="font-bold text-slate-900 text-sm truncate">{{ item.product.name }}</p>
+                  <p class="text-[11px] font-semibold text-slate-500 mt-0.5 truncate">{{ item.product.category }}</p>
+                </div>
+              </div>
+              <div class="text-right shrink-0">
+                <p class="font-black text-slate-900 text-sm">{{ item.revenue | currency:'INR' }}</p>
+                <span class="inline-block mt-0.5 px-2 py-0.5 rounded bg-indigo-50 text-indigo-700 font-extrabold text-[10px]">
+                  Qty: {{ item.quantity }}
+                </span>
+              </div>
+            </div>
+          }
+          @if (topSellingProducts().length === 0) {
+            <div class="p-8 text-center text-slate-500">
+              <span class="material-icons-outlined text-4xl text-slate-300 mb-2">inventory_2</span>
+              <p class="font-semibold text-sm">No sales data recorded yet.</p>
+            </div>
+          }
+        </div>
+        
+        <!-- Bottom Card Footer to balance height with right side -->
+        <div class="p-3 bg-slate-50/70 border-t border-slate-100 text-center shrink-0">
+          <a routerLink="/sales" class="text-xs font-bold text-indigo-600 hover:text-indigo-800 inline-flex items-center gap-1">
+            <span>View Detailed Sales & Product Performance</span>
+            <span class="material-icons-outlined text-sm">arrow_forward</span>
+          </a>
+        </div>
+      </div>
+    </div>
+
+    <!-- Right 6 Columns: Recent Invoices & Customers Stack -->
+    <div class="xl:col-span-6 space-y-6">
+      
+      <!-- Recent Invoices -->
+      <div class="bg-white rounded-2xl border border-slate-200/80 shadow-xs overflow-hidden flex flex-col">
+        <div class="p-4 border-b border-slate-100 flex items-center justify-between gap-4 bg-slate-50/50">
+          <div>
+            <h3 class="text-sm font-extrabold text-slate-900 flex items-center gap-2">
+              <span class="material-icons-outlined text-indigo-600">receipt_long</span>
+              Recent Sales Invoices
+            </h3>
+            <p class="text-[11px] text-slate-500 font-semibold mt-0.5">Latest sales transactions</p>
+          </div>
+          <a routerLink="/invoices" class="text-[11px] font-bold text-indigo-600 hover:text-indigo-700 bg-indigo-50 hover:bg-indigo-100 px-2.5 py-1 rounded-lg transition-colors">View All</a>
+        </div>
+        <div class="overflow-x-auto flex-1 hidden md:block">
+          <table class="w-full text-left border-collapse">
+            <thead>
+              <tr class="bg-slate-100/80 border-y border-slate-200 text-[10px] font-extrabold text-slate-700 uppercase tracking-wider">
+                <th class="py-2 px-3 pl-4">Invoice</th>
+                <th class="py-2 px-3">Customer</th>
+                <th class="py-2 px-3 text-right pr-4">Amount</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-100 text-xs">
+              @for (inv of recentInvoices(); track inv.id) {
+                <tr class="hover:bg-slate-50/50 transition-colors">
+                  <td class="py-2 px-3 pl-4">
+                    <div class="font-bold text-slate-900 leading-tight">{{ inv.id }}</div>
+                    <div class="text-[10px] text-slate-500 leading-none mt-0.5">{{ inv.date | date:'MMM d, y' }}</div>
+                  </td>
+                  <td class="py-2 px-3">
+                    <div class="font-semibold text-slate-700 truncate max-w-[120px] leading-tight">{{ inv.customer?.name || 'Walk-in Customer' }}</div>
+                  </td>
+                  <td class="py-2 px-3 pr-4 text-right">
+                    <div class="font-black text-slate-900 leading-tight">{{ inv.total | currency:'INR' }}</div>
+                    <div class="text-[9px] font-bold leading-none mt-0.5"
+                         [class.text-emerald-600]="inv.amountPaid >= inv.total"
+                         [class.text-rose-600]="inv.amountPaid < inv.total">
+                      {{ inv.amountPaid >= inv.total ? 'Paid' : ('Due: ' + ((inv.total - inv.amountPaid) | currency:'INR')) }}
+                    </div>
+                  </td>
+                </tr>
+              }
+              @if (recentInvoices().length === 0) {
+                <tr>
+                  <td colspan="3" class="p-4 text-center text-slate-500">
+                    <p class="font-semibold text-xs">No recent invoices.</p>
+                  </td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+
+        <!-- Mobile List View -->
+        <div class="md:hidden divide-y divide-slate-100 bg-white">
+          @for (inv of recentInvoices(); track inv.id) {
+            <div class="p-3 flex items-center justify-between gap-3">
+              <div class="min-w-0">
+                <p class="font-bold text-slate-900 text-xs truncate">{{ inv.customer?.name || 'Walk-in Customer' }}</p>
+                <div class="flex items-center gap-1.5 mt-0.5">
+                  <span class="font-bold text-slate-500 text-[10px]">{{ inv.id }}</span>
+                  <span class="text-slate-400 text-[10px]">{{ inv.date | date:'MMM d' }}</span>
+                </div>
+              </div>
+              <div class="text-right shrink-0">
+                <p class="font-black text-slate-900 text-xs">{{ inv.total | currency:'INR' }}</p>
+                <div class="text-[9px] font-bold mt-0.5"
+                     [class.text-emerald-600]="inv.amountPaid >= inv.total"
+                     [class.text-rose-600]="inv.amountPaid < inv.total">
+                  {{ inv.amountPaid >= inv.total ? 'Paid' : 'Due' }}
+                </div>
+              </div>
+            </div>
+          }
+          @if (recentInvoices().length === 0) {
+            <div class="p-4 text-center text-slate-500">
+              <p class="font-semibold text-xs">No recent invoices.</p>
+            </div>
+          }
+        </div>
+      </div>
+
+      <!-- Recent Customers -->
+      <div class="bg-white rounded-2xl border border-slate-200/80 shadow-xs overflow-hidden flex flex-col">
+        <div class="p-4 border-b border-slate-100 flex items-center justify-between gap-4 bg-slate-50/50">
+          <div>
+            <h3 class="text-sm font-extrabold text-slate-900 flex items-center gap-2">
+              <span class="material-icons-outlined text-emerald-600">group_add</span>
+              Recent Customers
+            </h3>
+            <p class="text-[11px] text-slate-500 font-semibold mt-0.5">Newly registered clients</p>
+          </div>
+          <a routerLink="/customers" class="text-[11px] font-bold text-emerald-600 hover:text-emerald-700 bg-emerald-50 hover:bg-emerald-100 px-2.5 py-1 rounded-lg transition-colors">View All</a>
+        </div>
+        <div class="overflow-x-auto flex-1 hidden md:block">
+          <table class="w-full text-left border-collapse">
+            <thead>
+              <tr class="bg-slate-100/80 border-y border-slate-200 text-[10px] font-extrabold text-slate-700 uppercase tracking-wider">
+                <th class="p-2.5 pl-4">Name</th>
+                <th class="p-2.5">Phone</th>
+                <th class="p-2.5 text-right pr-4">Orders</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-100 text-xs">
+              @for (cust of recentCustomers(); track cust.id) {
+                <tr class="hover:bg-slate-50/50 transition-colors">
+                  <td class="p-2.5 pl-4">
+                    <div class="flex items-center gap-2">
+                      <div class="w-6 h-6 rounded-full bg-emerald-100 text-emerald-800 flex items-center justify-center font-bold text-[10px] shrink-0">
+                        {{ cust.name.charAt(0) | uppercase }}
+                      </div>
+                      <div class="font-bold text-slate-900 truncate max-w-[110px]">{{ cust.name }}</div>
+                    </div>
+                  </td>
+                  <td class="p-2.5">
+                    <div class="font-semibold text-slate-700">{{ cust.phone }}</div>
+                  </td>
+                  <td class="p-2.5 pr-4 text-right">
+                    <span class="inline-flex items-center justify-center px-2 py-0.5 rounded bg-slate-100 text-slate-700 font-bold text-[10px]">
+                      {{ cust.orderCount }}
+                    </span>
+                  </td>
+                </tr>
+              }
+              @if (recentCustomers().length === 0) {
+                <tr>
+                  <td colspan="3" class="p-4 text-center text-slate-500">
+                    <p class="font-semibold text-xs">No recent customers.</p>
+                  </td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+
+        <!-- Mobile List View -->
+        <div class="md:hidden divide-y divide-slate-100 bg-white">
+          @for (cust of recentCustomers(); track cust.id) {
+            <div class="p-3 flex items-center justify-between gap-3">
+              <div class="flex items-center gap-2 min-w-0">
+                <div class="w-8 h-8 rounded-full bg-emerald-100 text-emerald-800 flex items-center justify-center font-bold text-xs shrink-0">
+                  {{ cust.name.charAt(0) | uppercase }}
+                </div>
+                <div class="min-w-0">
+                  <div class="font-bold text-slate-900 text-xs truncate">{{ cust.name }}</div>
+                  <div class="font-semibold text-slate-500 text-[10px]">{{ cust.phone }}</div>
+                </div>
+              </div>
+              <div class="text-right shrink-0">
+                <span class="inline-flex items-center justify-center px-2 py-0.5 rounded bg-slate-100 text-slate-700 font-bold text-[10px]">
+                  {{ cust.orderCount }} {{ cust.orderCount === 1 ? 'Order' : 'Orders' }}
+                </span>
+              </div>
+            </div>
+          }
+          @if (recentCustomers().length === 0) {
+            <div class="p-4 text-center text-slate-500">
+              <p class="font-semibold text-xs">No recent customers.</p>
+            </div>
+          }
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- Low Stock & Reorder Replenishment Widget -->
+  <div class="bg-white rounded-2xl border border-slate-200/80 shadow-xs overflow-hidden">
+    <div class="p-4 sm:p-5 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-slate-50/50">
+      <div class="flex items-center gap-3">
+        <div class="w-10 h-10 rounded-xl bg-amber-100 text-amber-700 flex items-center justify-center font-bold shadow-xs">
+          <span class="material-icons-outlined text-xl">warning</span>
+        </div>
+        <div>
+          <h3 class="text-base font-extrabold text-slate-900 flex items-center gap-2">
+            <span>Low Stock & Reorder Replenishment Alerts</span>
+            @if (lowStockProducts().length > 0) {
+              <span class="px-2.5 py-0.5 rounded-full bg-amber-100 text-amber-800 font-black text-xs">
+                {{ lowStockProducts().length }} {{ lowStockProducts().length === 1 ? 'item' : 'items' }} below reorder point
+              </span>
+            }
+          </h3>
+          <p class="text-xs text-slate-500 font-semibold mt-0.5">
+            Products at or below their minimum reorder stock threshold. Quick-restock or log purchase consignments to maintain inventory levels.
+          </p>
+        </div>
+      </div>
+      <a routerLink="/purchases" class="px-4 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs flex items-center justify-center gap-2 transition-all shadow-md shadow-indigo-600/20 shrink-0">
+        <span class="material-icons-outlined text-base">local_shipping</span>
+        <span>Log Purchase / Consignment</span>
+      </a>
+    </div>
+
+    <!-- Table View -->
+    <div class="overflow-x-auto hidden md:block">
+      <table class="w-full text-left border-collapse">
+        <thead>
+          <tr class="bg-slate-100/80 border-y border-slate-200 text-[11px] font-extrabold text-slate-700 uppercase tracking-wider">
+            <th class="py-3 px-4 pl-6">Product Details</th>
+            <th class="py-3 px-4">SKU</th>
+            <th class="py-3 px-4">Category</th>
+            <th class="py-3 px-4 text-center">Current Stock</th>
+            <th class="py-3 px-4 text-center">Reorder Threshold</th>
+            <th class="py-3 px-4 text-right pr-6">Quick Actions</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-slate-100 text-xs bg-white">
+          @for (prod of lowStockProducts(); track prod.id) {
+            <tr class="hover:bg-amber-50/40 transition-colors">
+              <td class="py-3 px-4 pl-6">
+                <div class="flex items-center gap-3">
+                  <div class="w-9 h-9 rounded-xl overflow-hidden bg-slate-100 border border-slate-200/60 shrink-0 shadow-xs flex items-center justify-center text-slate-400">
+                    @if (prod.imageUrls?.[0]) {
+                      <img [src]="prod.imageUrls[0]" [alt]="prod.name" class="w-full h-full object-cover" referrerpolicy="no-referrer">
+                    } @else {
+                      <span class="material-icons-outlined text-base">image</span>
+                    }
+                  </div>
+                  <div>
+                    <p class="font-extrabold text-slate-900 text-xs">{{ prod.name }}</p>
+                    <p class="text-[10px] font-semibold text-slate-500 mt-0.5">{{ prod.size }} • {{ prod.color || 'Standard' }}</p>
+                  </div>
+                </div>
+              </td>
+              <td class="py-3 px-4 font-mono font-bold text-slate-600">{{ prod.sku }}</td>
+              <td class="py-3 px-4">
+                <span class="px-2.5 py-1 rounded-lg bg-slate-100 text-slate-700 font-bold text-[11px]">
+                  {{ prod.category }}
+                </span>
+              </td>
+              <td class="py-3 px-4 text-center">
+                <span class="px-2.5 py-1 rounded-full bg-rose-100 text-rose-700 font-black text-xs inline-flex items-center gap-1">
+                  <span class="w-1.5 h-1.5 rounded-full bg-rose-600 animate-ping"></span>
+                  <span>{{ prod.quantity }} units</span>
+                </span>
+              </td>
+              <td class="py-3 px-4 text-center">
+                <span class="font-bold text-slate-700">≤ {{ prod.minStockAlert || 5 }} units</span>
+              </td>
+              <td class="py-3 px-4 pr-6 text-right">
+                <button (click)="restockProduct(prod)" class="px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-[11px] inline-flex items-center gap-1.5 transition-all shadow-xs">
+                  <span class="material-icons-outlined text-sm">add_circle</span>
+                  <span>Restock</span>
+                </button>
+              </td>
+            </tr>
+          }
+          @if (lowStockProducts().length === 0) {
+            <tr>
+              <td colspan="6" class="py-12 text-center text-slate-500">
+                <div class="space-y-2 max-w-sm mx-auto">
+                  <div class="w-12 h-12 rounded-full bg-emerald-50 text-emerald-600 inline-flex items-center justify-center">
+                    <span class="material-icons-outlined text-2xl">check_circle</span>
+                  </div>
+                  <p class="font-extrabold text-slate-800 text-sm">All Inventory Stock Levels Are Optimal!</p>
+                  <p class="text-xs text-slate-400">No products are currently below their minimum reorder point threshold.</p>
+                </div>
+              </td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Mobile Card List View -->
+    <div class="md:hidden divide-y divide-slate-100 bg-white">
+      @for (prod of lowStockProducts(); track prod.id) {
+        <div class="p-4 space-y-3">
+          <div class="flex items-center justify-between gap-3">
+            <div class="flex items-center gap-3 min-w-0">
+              <div class="w-10 h-10 rounded-xl overflow-hidden bg-slate-100 border border-slate-200/60 shrink-0 shadow-xs flex items-center justify-center text-slate-400">
+                @if (prod.imageUrls?.[0]) {
+                  <img [src]="prod.imageUrls[0]" [alt]="prod.name" class="w-full h-full object-cover" referrerpolicy="no-referrer">
+                } @else {
+                  <span class="material-icons-outlined text-base">image</span>
+                }
+              </div>
+              <div class="min-w-0">
+                <p class="font-extrabold text-slate-900 text-xs truncate">{{ prod.name }}</p>
+                <p class="text-[10px] font-mono text-slate-500 mt-0.5">{{ prod.sku }}</p>
+              </div>
+            </div>
+            <span class="px-2.5 py-1 rounded-full bg-rose-100 text-rose-700 font-black text-xs shrink-0">
+              {{ prod.quantity }} left
+            </span>
+          </div>
+          <div class="flex items-center justify-between text-xs pt-2 border-t border-slate-100">
+            <span class="text-slate-500 font-medium">Reorder Point: ≤ {{ prod.minStockAlert || 5 }}</span>
+            <button (click)="restockProduct(prod)" class="px-3 py-1.5 rounded-xl bg-emerald-600 text-white font-bold text-xs inline-flex items-center gap-1">
+              <span class="material-icons-outlined text-sm">add_circle</span>
+              <span>Restock</span>
+            </button>
+          </div>
+        </div>
+      }
+      @if (lowStockProducts().length === 0) {
+        <div class="p-8 text-center text-slate-500">
+          <div class="w-10 h-10 rounded-full bg-emerald-50 text-emerald-600 inline-flex items-center justify-center mb-2">
+            <span class="material-icons-outlined text-xl">check_circle</span>
+          </div>
+          <p class="font-extrabold text-slate-800 text-sm">All Inventory Stock Levels Are Optimal!</p>
+          <p class="text-xs text-slate-400 mt-1">No products are currently below their reorder threshold.</p>
+        </div>
+      }
+    </div>
+  </div>
+</div>

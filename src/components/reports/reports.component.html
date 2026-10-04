@@ -1,0 +1,126 @@
+<div class="space-y-4 animate-fadeInUp relative">
+  
+  @if (isLoading()) {
+    <div class="fixed inset-0 bg-white/80 backdrop-blur-md z-[9999] flex items-center justify-center">
+      <app-loader message="Aggregating Financial Reports..."></app-loader>
+    </div>
+  }
+
+  <!-- Header Bar -->
+  <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-6 rounded-2xl border border-slate-200/80 shadow-xs">
+    <div>
+      <h1 class="text-2xl font-extrabold text-slate-900 tracking-tight flex items-center gap-2">
+        <span class="material-icons-outlined text-indigo-600 text-2xl">insights</span>
+        {{ ts.t('nav.reports') }}
+      </h1>
+      <p class="text-xs text-slate-500 font-semibold mt-0.5">{{ ts.currentLang() === 'hi' ? 'राजस्व, व्यय और लाभप्रदता का विश्लेषण करें' : 'Analyze revenue, expenses, and profitability over time' }}</p>
+    </div>
+
+    <!-- Time Filters -->
+    <div class="flex items-center gap-1.5 bg-slate-50 p-1.5 rounded-xl border border-slate-200">
+      <button (click)="setTimeRange('7d')"
+              [class]="timeRange() === '7d' ? 'bg-white shadow-sm text-indigo-600 border border-slate-200/60' : 'text-slate-600 hover:bg-slate-200/50 hover:text-slate-900 border border-transparent'"
+              class="px-4 py-1.5 rounded-lg text-xs font-bold transition-all duration-300">
+        {{ ts.currentLang() === 'hi' ? 'पिछले 7 दिन' : 'Last 7 Days' }}
+      </button>
+      <button (click)="setTimeRange('30d')"
+              [class]="timeRange() === '30d' ? 'bg-white shadow-sm text-indigo-600 border border-slate-200/60' : 'text-slate-600 hover:bg-slate-200/50 hover:text-slate-900 border border-transparent'"
+              class="px-4 py-1.5 rounded-lg text-xs font-bold transition-all duration-300">
+        {{ ts.currentLang() === 'hi' ? 'पिछले 30 दिन' : 'Last 30 Days' }}
+      </button>
+      <button (click)="setTimeRange('all')"
+              [class]="timeRange() === 'all' ? 'bg-white shadow-sm text-indigo-600 border border-slate-200/60' : 'text-slate-600 hover:bg-slate-200/50 hover:text-slate-900 border border-transparent'"
+              class="px-4 py-1.5 rounded-lg text-xs font-bold transition-all duration-300">
+        {{ ts.currentLang() === 'hi' ? 'अब तक का कुल' : 'All Time' }}
+      </button>
+    </div>
+  </div>
+
+  <!-- KPI Cards -->
+  <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+    <div class="bg-white p-6 rounded-2xl border border-slate-200/80 shadow-xs relative overflow-hidden group">
+      <div class="absolute -right-6 -top-6 w-24 h-24 bg-indigo-50 rounded-full opacity-50 group-hover:scale-150 transition-transform duration-700"></div>
+      <div class="relative z-10 flex items-center justify-between mb-4">
+        <h3 class="text-xs font-extrabold text-slate-500 uppercase tracking-wider">{{ ts.t('dash.totalSales') }}</h3>
+        <span class="material-icons-outlined text-indigo-500 bg-indigo-50 p-2 rounded-xl text-[18px]">account_balance_wallet</span>
+      </div>
+      <p class="relative z-10 text-3xl font-extrabold text-slate-900">{{ reportData().kpis.totalRevenue | currency:'INR':'symbol':'1.0-0' }}</p>
+    </div>
+
+    <div class="bg-white p-6 rounded-2xl border border-slate-200/80 shadow-xs relative overflow-hidden group">
+      <div class="absolute -right-6 -top-6 w-24 h-24 bg-emerald-50 rounded-full opacity-50 group-hover:scale-150 transition-transform duration-700"></div>
+      <div class="relative z-10 flex items-center justify-between mb-4">
+        <h3 class="text-xs font-extrabold text-slate-500 uppercase tracking-wider">{{ ts.t('dash.totalInvoices') }}</h3>
+        <span class="material-icons-outlined text-emerald-500 bg-emerald-50 p-2 rounded-xl text-[18px]">receipt_long</span>
+      </div>
+      <p class="relative z-10 text-3xl font-extrabold text-slate-900">{{ reportData().kpis.totalInvoices }}</p>
+    </div>
+
+    <div class="bg-white p-6 rounded-2xl border border-slate-200/80 shadow-xs relative overflow-hidden group">
+      <div class="absolute -right-6 -top-6 w-24 h-24 bg-sky-50 rounded-full opacity-50 group-hover:scale-150 transition-transform duration-700"></div>
+      <div class="relative z-10 flex items-center justify-between mb-4">
+        <h3 class="text-xs font-extrabold text-slate-500 uppercase tracking-wider">{{ ts.currentLang() === 'hi' ? 'औसत बिल राशि' : 'Avg. Order Value' }}</h3>
+        <span class="material-icons-outlined text-sky-500 bg-sky-50 p-2 rounded-xl text-[18px]">shopping_cart</span>
+      </div>
+      <p class="relative z-10 text-3xl font-extrabold text-slate-900">{{ reportData().kpis.avgOrderValue | currency:'INR':'symbol':'1.0-0' }}</p>
+    </div>
+
+    <div class="p-6 rounded-2xl border shadow-xs relative overflow-hidden group transition-colors" [ngClass]="reportData().kpis.netProfit >= 0 ? 'bg-gradient-to-br from-white to-emerald-50/50 border-emerald-200/60' : 'bg-gradient-to-br from-white to-rose-50/50 border-rose-200/60'">
+      <div class="absolute -right-6 -top-6 w-24 h-24 rounded-full opacity-50 group-hover:scale-150 transition-transform duration-700" [ngClass]="reportData().kpis.netProfit >= 0 ? 'bg-emerald-100' : 'bg-rose-100'"></div>
+      <div class="relative z-10 flex items-center justify-between mb-4">
+        <h3 class="text-xs font-extrabold uppercase tracking-wider" [ngClass]="reportData().kpis.netProfit >= 0 ? 'text-emerald-700' : 'text-rose-700'">{{ ts.currentLang() === 'hi' ? 'शुद्ध लाभ (Net Profit)' : 'Net Profit' }}</h3>
+        <span class="material-icons-outlined p-2 rounded-xl text-[18px]" [ngClass]="reportData().kpis.netProfit >= 0 ? 'text-emerald-600 bg-emerald-100/50' : 'text-rose-600 bg-rose-100/50'">
+          {{ reportData().kpis.netProfit >= 0 ? 'trending_up' : 'trending_down' }}
+        </span>
+      </div>
+      <p class="relative z-10 text-3xl font-extrabold" [ngClass]="reportData().kpis.netProfit >= 0 ? 'text-emerald-900' : 'text-rose-900'">
+        {{ reportData().kpis.netProfit | currency:'INR':'symbol':'1.0-0' }}
+      </p>
+    </div>
+  </div>
+
+  <!-- Charts -->
+  <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+    <!-- Sales Over Time Chart -->
+    <div class="bg-white rounded-2xl border border-slate-200/80 shadow-xs flex flex-col">
+      <div class="p-6 pb-2 border-b border-slate-100 flex items-center justify-between">
+        <div>
+          <h3 class="text-base font-extrabold text-slate-900">{{ ts.currentLang() === 'hi' ? 'बिक्री रुझान (Sales Trends)' : 'Sales Trends' }}</h3>
+          <p class="text-xs text-slate-500 font-semibold mt-0.5">{{ ts.currentLang() === 'hi' ? 'चयनित अवधि के लिए दैनिक राजस्व' : 'Daily revenue for the selected period' }}</p>
+        </div>
+        <span class="material-icons-outlined text-indigo-200 text-3xl">show_chart</span>
+      </div>
+      <div class="p-6 flex-1 flex flex-col justify-center">
+        <div #salesChart class="w-full h-[300px] relative">
+           @if(reportData().salesOverTime.length === 0) {
+            <div class="absolute inset-0 flex flex-col items-center justify-center text-slate-400">
+              <span class="material-icons-outlined text-4xl mb-2 text-slate-200">query_stats</span>
+              <p class="font-bold text-sm">{{ ts.currentLang() === 'hi' ? 'इस अवधि के लिए कोई बिक्री डेटा नहीं है' : 'No sales data for this period' }}</p>
+            </div>
+           }
+        </div>
+      </div>
+    </div>
+    
+    <!-- Profit & Loss Chart -->
+    <div class="bg-white rounded-2xl border border-slate-200/80 shadow-xs flex flex-col">
+      <div class="p-6 pb-2 border-b border-slate-100 flex items-center justify-between">
+        <div>
+          <h3 class="text-base font-extrabold text-slate-900">{{ ts.currentLang() === 'hi' ? 'लाभ और हानि विवरण (P&L)' : 'Profit & Loss Breakdown' }}</h3>
+          <p class="text-xs text-slate-500 font-semibold mt-0.5">{{ ts.currentLang() === 'hi' ? 'राजस्व, लागत और खर्च संरचना' : 'Revenue, costs, and expenses structure' }}</p>
+        </div>
+        <span class="material-icons-outlined text-emerald-200 text-3xl">pie_chart</span>
+      </div>
+      <div class="p-6 flex-1 flex flex-col justify-center">
+        <div #pnlChart class="w-full h-[300px] relative">
+           @if(reportData().pnlData[0]?.revenue === 0) {
+            <div class="absolute inset-0 flex flex-col items-center justify-center text-slate-400">
+              <span class="material-icons-outlined text-4xl mb-2 text-slate-200">incomplete_circle</span>
+              <p class="font-bold text-sm">{{ ts.currentLang() === 'hi' ? 'इस अवधि के लिए कोई वित्तीय डेटा नहीं है' : 'No financial data for this period' }}</p>
+            </div>
+           }
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

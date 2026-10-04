@@ -1,0 +1,10 @@
+{
+  "name": "Shop Inventory & Billing",
+  "description": "A comprehensive application to manage products, stock, sales, invoices, and customers for your shop. Features a point-of-sale system, inventory management, and reporting dashboards.",
+  "requestFramePermissions": [
+    "camera"
+  ],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

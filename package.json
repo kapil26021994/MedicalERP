@@ -1,0 +1,51 @@
+{
+  "name": "shop-inventory-and-billing",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "ng serve --host 0.0.0.0 --port 3000 --proxy-config proxy.conf.json",
+    "api": "npm run build && node --env-file-if-exists=.env api.ts",
+    "start": "node --env-file-if-exists=.env server.ts",
+    "lint": "tsc --noEmit",
+    "build": "ng build && node postbuild.js",
+    "preview": "ng serve --host 0.0.0.0 --port 3000 --configuration=production"
+  },
+  "overrides": {
+    "whatwg-url": "14.2.0"
+  },
+  "dependencies": {
+    "@angular/build": "^21.1.4",
+    "@angular/cdk": "^21.1.4",
+    "@angular/cli": "^21.1.4",
+    "@angular/common": "^21.1.4",
+    "@angular/compiler": "^21.1.4",
+    "@angular/compiler-cli": "^21.1.4",
+    "@angular/core": "^21.1.4",
+    "@angular/forms": "^21.1.4",
+    "@angular/material": "^21.1.4",
+    "@angular/platform-browser": "^21.1.4",
+    "@angular/platform-server": "^21.1.4",
+    "@angular/router": "^21.1.4",
+    "@angular/ssr": "^21.1.4",
+    "@google/genai": "^0.15.0",
+    "@supabase/supabase-js": "^2.111.0",
+    "@types/d3": "^7.4.3",
+    "@types/jspdf": "^2.0.0",
+    "d3": "^7.9.0",
+    "express": "^5.2.1",
+    "html2canvas": "^1.4.1",
+    "jspdf": "^4.2.1",
+    "motion": "^12.43.0",
+    "rxjs": "^7.8.2",
+    "tailwindcss": "^4.0.0",
+    "tesseract.js": "^7.0.0"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4.3.3",
+    "@types/express": "^5.0.6",
+    "@types/node": "^22.14.0",
+    "postcss": "^8.5.28",
+    "typescript": "~5.9.0"
+  }
+}

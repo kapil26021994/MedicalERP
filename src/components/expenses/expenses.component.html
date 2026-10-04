@@ -1,0 +1,338 @@
+<div class="space-y-4 animate-fadeInUp relative">
+  
+  @if (expenseService.isLoading()) {
+    <div class="fixed inset-0 bg-white/80 backdrop-blur-md z-[9999] flex items-center justify-center">
+      <app-loader message="Tracking Store Expenses..."></app-loader>
+    </div>
+  }
+
+  <!-- Header Bar -->
+  <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-6 rounded-2xl border border-slate-200/80 shadow-xs">
+    <div>
+      <h1 class="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight flex items-center gap-2">
+        <span class="material-icons-outlined text-indigo-600 text-2xl">payments</span>
+        <span>Expense Management</span>
+      </h1>
+      <p class="text-xs text-slate-500 font-semibold mt-1">Track operational expenses, store utilities, and overhead costs</p>
+    </div>
+
+    <div class="flex flex-col sm:flex-row items-center gap-3">
+      <div class="relative w-full sm:w-64">
+        <span class="material-icons-outlined absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 text-lg pointer-events-none">search</span>
+        <input type="text"
+               (input)="onSearch($event)"
+               placeholder="Search expenses..."
+               class="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 focus:border-indigo-500 focus:bg-white rounded-xl text-xs font-semibold text-slate-900 placeholder-slate-400 outline-none transition-all">
+      </div>
+
+      <button (click)="showSqlModal.set(true)" class="w-full sm:w-auto px-4 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs flex items-center justify-center gap-1.5 transition-all shrink-0 border border-slate-200">
+        <span class="material-icons-outlined text-base text-indigo-600">terminal</span>
+        <span>Supabase SQL Setup</span>
+      </button>
+
+      <button (click)="deleteAll()" class="w-full sm:w-auto px-5 py-2.5 rounded-xl bg-red-50 hover:bg-red-100 text-red-600 font-bold text-xs flex items-center justify-center gap-2 transition-all shrink-0">
+        <span class="material-icons-outlined text-base">delete_sweep</span>
+        <span>Delete All</span>
+      </button>
+
+      <button (click)="openAddModal()" class="w-full sm:w-auto px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs flex items-center justify-center gap-2 transition-all shadow-md shadow-indigo-600/20 shrink-0">
+        <span class="material-icons-outlined text-base">add</span>
+        <span>Log New Expense</span>
+      </button>
+    </div>
+  </div>
+
+  <!-- Bulk Actions Bar -->
+  @if (selectedIds().size > 0) {
+    <div class="bg-indigo-50 border border-indigo-200 p-4 rounded-2xl flex items-center justify-between gap-4 animate-fadeInUp">
+      <div class="flex items-center gap-2 text-indigo-900 font-bold text-xs">
+        <span class="material-icons-outlined text-indigo-600 text-base">check_box</span>
+        <span>{{ selectedIds().size }} expense(s) selected</span>
+      </div>
+      <button (click)="deleteSelected()" class="px-4 py-2 bg-red-600 hover:bg-red-500 text-white font-bold text-xs rounded-xl flex items-center gap-2 shadow-xs transition-all">
+        <span class="material-icons-outlined text-base">delete</span>
+        <span>Delete Selected</span>
+      </button>
+    </div>
+  }
+
+  <!-- Expenses Table & Mobile List -->
+  <div class="bg-white rounded-2xl border border-slate-200/80 shadow-xs overflow-hidden">
+    <!-- Desktop Table View -->
+    <div class="overflow-x-auto hidden md:block">
+      <table class="w-full min-w-[700px] text-left border-collapse">
+        <thead>
+          <tr class="bg-white border-b border-slate-200 text-[11px] font-extrabold text-slate-500 uppercase tracking-wider select-none">
+            <th class="py-2.5 px-3 pl-5 w-10">
+              <input type="checkbox" [checked]="isAllSelected()" (change)="toggleSelectAll()" class="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer">
+            </th>
+            <th (click)="toggleSort('date')" class="py-2.5 px-3 cursor-pointer hover:text-indigo-600 transition-colors">
+              <div class="flex items-center gap-1">
+                <span>Transaction Date</span>
+                <span class="material-icons-outlined text-xs">{{ getSortIcon('date') }}</span>
+              </div>
+            </th>
+            <th (click)="toggleSort('category')" class="py-2.5 px-3 cursor-pointer hover:text-indigo-600 transition-colors">
+              <div class="flex items-center gap-1">
+                <span>Category</span>
+                <span class="material-icons-outlined text-xs">{{ getSortIcon('category') }}</span>
+              </div>
+            </th>
+            <th (click)="toggleSort('desc')" class="py-2.5 px-3 cursor-pointer hover:text-indigo-600 transition-colors">
+              <div class="flex items-center gap-1">
+                <span>Memo / Description</span>
+                <span class="material-icons-outlined text-xs">{{ getSortIcon('desc') }}</span>
+              </div>
+            </th>
+            <th (click)="toggleSort('amount')" class="py-2.5 px-3 text-right cursor-pointer hover:text-indigo-600 transition-colors">
+              <div class="flex items-center justify-end gap-1">
+                <span>Amount</span>
+                <span class="material-icons-outlined text-xs">{{ getSortIcon('amount') }}</span>
+              </div>
+            </th>
+            <th class="py-2.5 px-3 pr-5 text-right">Actions</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-slate-100 text-xs">
+          @for (expense of paginatedExpenses(); track expense.id) {
+            <tr class="hover:bg-slate-50/80 transition-colors">
+              <td class="py-2.5 px-3 pl-5 w-10">
+                <input type="checkbox" [checked]="selectedIds().has(expense.id)" (change)="toggleSelection(expense.id)" class="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer">
+              </td>
+              <td class="py-2.5 px-3 font-semibold text-slate-700">
+                {{ expense.date | date:'mediumDate' }}
+              </td>
+
+              <td class="py-2.5 px-3">
+                <span class="px-2 py-0.5 rounded-lg bg-slate-100 text-slate-700 font-bold text-[10px]">
+                  {{ expense.category }}
+                </span>
+              </td>
+
+              <td class="py-2.5 px-3 font-bold text-slate-900">
+                {{ expense.description }}
+              </td>
+
+              <td class="py-2.5 px-3 text-right font-extrabold text-slate-900">
+                {{ expense.amount | currency:'INR' }}
+              </td>
+
+              <td class="py-2.5 px-3 pr-5 text-right">
+                <div class="flex items-center justify-end gap-1">
+                  <button (click)="openEditModal(expense)" title="Edit Record" class="p-1.5 text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors">
+                    <span class="material-icons-outlined text-lg">edit</span>
+                  </button>
+                  <button (click)="deleteExpense(expense)" title="Delete Record" class="p-1.5 text-slate-500 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors">
+                    <span class="material-icons-outlined text-lg">delete</span>
+                  </button>
+                </div>
+              </td>
+            </tr>
+          } @empty {
+            <tr>
+              <td colspan="5" class="p-12 text-center text-slate-400">
+                <span class="material-icons-outlined text-4xl text-slate-300 mb-2">receipt</span>
+                <p class="font-bold text-sm text-slate-600">No operational expenses recorded</p>
+              </td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Mobile Card View -->
+    <div class="md:hidden divide-y divide-slate-100">
+      @for (expense of paginatedExpenses(); track expense.id) {
+        <div class="p-4 space-y-3 bg-white">
+          <div class="flex items-center justify-between">
+            <div>
+              <p class="font-bold text-slate-900 text-sm">{{ expense.description }}</p>
+              <div class="flex items-center gap-2 mt-1">
+                <span class="text-[11px] text-slate-500 font-medium">{{ expense.date | date:'mediumDate' }}</span>
+              </div>
+            </div>
+            <div class="text-right">
+              <p class="font-extrabold text-slate-900 text-sm">{{ expense.amount | currency:'INR' }}</p>
+            </div>
+          </div>
+          <div class="flex items-center justify-between border-t border-slate-50 pt-3">
+            <span class="px-2.5 py-1 rounded-lg bg-slate-100 text-slate-700 font-bold text-[10px]">{{ expense.category }}</span>
+            <div class="flex items-center gap-2">
+              <button (click)="openEditModal(expense)" title="Edit Record" class="p-1.5 rounded-lg text-slate-600 bg-slate-100 hover:bg-slate-200 transition-colors">
+                <span class="material-icons-outlined text-sm">edit</span>
+              </button>
+              <button (click)="deleteExpense(expense)" title="Delete Record" class="p-1.5 rounded-lg text-rose-600 bg-rose-50 hover:bg-rose-100 transition-colors">
+                <span class="material-icons-outlined text-sm">delete_outline</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      } @empty {
+        <div class="p-8 text-center text-slate-400">
+          <span class="material-icons-outlined text-3xl text-slate-300 mb-2">receipt</span>
+          <p class="font-bold text-sm text-slate-600">No operational expenses recorded</p>
+        </div>
+      }
+    </div>
+
+    <!-- Pagination Footer -->
+    @if (filteredExpenses().length > 0) {
+      <div class="px-6 py-4 bg-slate-50/80 border-t border-slate-200/80 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs font-semibold text-slate-600">
+        <div class="flex items-center gap-3">
+          <span>
+            Showing <span class="font-bold text-slate-900">{{ startItemIndex() }}</span> to 
+            <span class="font-bold text-slate-900">{{ endItemIndex() }}</span> of 
+            <span class="font-bold text-slate-900">{{ filteredExpenses().length }}</span> expenses
+          </span>
+          <div class="flex items-center gap-1.5 pl-2 border-l border-slate-200">
+            <span class="text-slate-500 text-[11px]">Rows:</span>
+            <select #sizeSelect (change)="onPageSizeChange(+sizeSelect.value)" [value]="pageSize()" class="bg-white border border-slate-200 rounded-lg text-xs py-1 px-2 font-bold focus:outline-none focus:ring-1 focus:ring-indigo-500">
+              <option [value]="5">5</option>
+              <option [value]="10">10</option>
+              <option [value]="25">25</option>
+              <option [value]="50">50</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="flex items-center gap-1">
+          <button (click)="goToPage(1)" [disabled]="currentPage() === 1" class="px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-100 disabled:opacity-40 disabled:hover:bg-white text-slate-700 transition-colors" title="First Page">
+            <span class="material-icons-outlined text-sm">first_page</span>
+          </button>
+          <button (click)="goToPage(currentPage() - 1)" [disabled]="currentPage() === 1" class="px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-100 disabled:opacity-40 disabled:hover:bg-white text-slate-700 transition-colors" title="Previous Page">
+            <span class="material-icons-outlined text-sm">chevron_left</span>
+          </button>
+          
+          <span class="px-3 py-1 bg-indigo-50 border border-indigo-100 rounded-lg font-bold text-indigo-700">
+            Page {{ currentPage() }} of {{ totalPages() }}
+          </span>
+
+          <button (click)="goToPage(currentPage() + 1)" [disabled]="currentPage() === totalPages()" class="px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-100 disabled:opacity-40 disabled:hover:bg-white text-slate-700 transition-colors" title="Next Page">
+            <span class="material-icons-outlined text-sm">chevron_right</span>
+          </button>
+          <button (click)="goToPage(totalPages())" [disabled]="currentPage() === totalPages()" class="px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-100 disabled:opacity-40 disabled:hover:bg-white text-slate-700 transition-colors" title="Last Page">
+            <span class="material-icons-outlined text-sm">last_page</span>
+          </button>
+        </div>
+      </div>
+    }
+  </div>
+
+</div>
+
+<!-- Modal -->
+@if (showModal()) {
+  <div class="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-4">
+    <div class="bg-white rounded-3xl shadow-2xl border border-slate-200 max-w-md w-full overflow-hidden animate-fadeInUp">
+      <div class="p-5 bg-indigo-600 text-white flex items-center justify-between">
+        <h3 class="font-extrabold text-base flex items-center gap-2">
+          <span class="material-icons-outlined text-xl">{{ editingExpense() ? 'edit' : 'payments' }}</span>
+          <span>{{ editingExpense() ? 'Edit Expense Entry' : 'Log New Expense' }}</span>
+        </h3>
+        <button (click)="closeModal()" class="p-1 rounded-lg text-indigo-200 hover:text-white hover:bg-indigo-500 transition-colors">
+          <span class="material-icons-outlined text-lg">close</span>
+        </button>
+      </div>
+
+      <form [formGroup]="expenseForm" (ngSubmit)="saveExpense()" class="p-6 space-y-4">
+        @if (modalError()) {
+          <div class="p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs font-semibold flex items-center gap-2">
+            <span class="material-icons-outlined text-base shrink-0">error_outline</span>
+            <span>{{ modalError() }}</span>
+          </div>
+        }
+
+        <div class="space-y-3 text-xs font-semibold">
+          <div>
+            <label class="block text-slate-600 mb-1">Transaction Date *</label>
+            <input type="date" formControlName="date" class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 focus:border-indigo-500 rounded-xl text-slate-900 outline-none">
+          </div>
+
+          <div>
+            <label class="block text-slate-600 mb-1">Expense Category *</label>
+            <input list="categoryOptions" formControlName="category" placeholder="Select or type a category..." class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 focus:border-indigo-500 rounded-xl text-slate-900 outline-none">
+            <datalist id="categoryOptions">
+              @for (cat of dynamicCategories(); track cat) {
+                <option [value]="cat"></option>
+              }
+            </datalist>
+          </div>
+
+          <div>
+            <label class="block text-slate-600 mb-1">Description / Memo *</label>
+            <input type="text" formControlName="description" placeholder="e.g. Monthly Electricity Bill" class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 focus:border-indigo-500 rounded-xl text-slate-900 outline-none">
+          </div>
+
+          <div>
+            <label class="block text-slate-600 mb-1">Amount Paid (₹) *</label>
+            <input type="number" formControlName="amount" placeholder="0.00" class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 focus:border-indigo-500 rounded-xl text-slate-900 outline-none">
+          </div>
+        </div>
+
+        <div class="flex items-center gap-3 pt-4 border-t border-slate-100">
+          <button type="button" (click)="closeModal()" class="flex-1 py-2.5 px-4 rounded-xl border border-slate-200 font-bold text-xs text-slate-700 hover:bg-slate-50 transition-colors">
+            Cancel
+          </button>
+          <button type="submit" [disabled]="expenseForm.invalid" class="flex-1 py-2.5 px-4 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs transition-colors shadow-md shadow-indigo-600/20">
+            Save Expense
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+}
+
+<!-- SQL Schema Modal -->
+@if (showSqlModal()) {
+  <div class="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 animate-fadeIn">
+    <div class="bg-white rounded-2xl max-w-2xl w-full shadow-2xl border border-slate-100 overflow-hidden flex flex-col max-h-[90vh]">
+      <div class="p-5 border-b border-slate-100 flex items-center justify-between bg-slate-900 text-white">
+        <div class="flex items-center gap-2.5">
+          <span class="material-icons-outlined text-indigo-400">storage</span>
+          <div>
+            <h3 class="font-extrabold text-sm tracking-tight">Supabase Database Setup</h3>
+            <p class="text-[11px] text-slate-400 font-medium">Run this script once in your Supabase SQL Editor</p>
+          </div>
+        </div>
+        <button (click)="showSqlModal.set(false)" class="p-1 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-white transition-colors">
+          <span class="material-icons-outlined text-lg">close</span>
+        </button>
+      </div>
+
+      <div class="p-6 space-y-4 overflow-y-auto text-xs text-slate-600 font-medium leading-relaxed">
+        <div class="p-3.5 bg-amber-50 border border-amber-200 rounded-xl text-amber-900 flex items-start gap-2.5">
+          <span class="material-icons-outlined text-amber-600 shrink-0 mt-0.5">info</span>
+          <div>
+            <strong class="font-bold">Why is this required?</strong>
+            <p class="mt-0.5 text-[11px] text-amber-800">
+              Supabase enforces security rules where tables must be created via the <strong>Supabase Dashboard SQL Editor</strong>. Copy the script below and run it in your project SQL Editor to enable remote cloud storage for expenses, customers, products, and invoices.
+            </p>
+          </div>
+        </div>
+
+        <div class="relative">
+          <div class="flex items-center justify-between mb-1.5">
+            <span class="text-[11px] font-bold text-slate-700 uppercase tracking-wider">SQL Setup Script</span>
+            <button (click)="copySql()" class="px-3 py-1 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg font-bold text-[11px] flex items-center gap-1 transition-all shadow-xs">
+              <span class="material-icons-outlined text-xs">{{ sqlCopied() ? 'done' : 'content_copy' }}</span>
+              <span>{{ sqlCopied() ? 'Copied to Clipboard!' : 'Copy SQL Script' }}</span>
+            </button>
+          </div>
+          <pre class="bg-slate-950 text-emerald-400 p-4 rounded-xl font-mono text-[11px] overflow-x-auto max-h-60 border border-slate-800 select-all leading-normal">{{ sqlScript }}</pre>
+        </div>
+
+        <ol class="space-y-1.5 list-decimal list-inside text-[11px] text-slate-600 font-medium">
+          <li>Open your <a href="https://supabase.com/dashboard" target="_blank" class="text-indigo-600 font-bold underline">Supabase Project Dashboard</a></li>
+          <li>Navigate to <strong>SQL Editor</strong> in the left sidebar menu</li>
+          <li>Click <strong>New Query</strong>, paste the script above, and click <strong>Run</strong></li>
+        </ol>
+      </div>
+
+      <div class="p-4 border-t border-slate-100 bg-slate-50 flex items-center justify-end">
+        <button (click)="showSqlModal.set(false)" class="px-5 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-xl font-bold text-xs transition-colors">
+          Got it, Close
+        </button>
+      </div>
+    </div>
+  </div>
+}

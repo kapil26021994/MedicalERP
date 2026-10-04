@@ -1,0 +1,379 @@
+<div class="w-full px-3 sm:px-4 lg:px-6 py-2 space-y-4 animate-fadeInUp relative">
+  
+  @if (invoiceService.isLoading()) {
+    <div class="fixed inset-0 bg-white/80 backdrop-blur-md z-[9999] flex items-center justify-center">
+      <app-loader message="Syncing Invoice Ledger..."></app-loader>
+    </div>
+  }
+  
+  <!-- Header Bar -->
+  <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-6 rounded-2xl border border-slate-200/80 shadow-xs">
+    <div>
+      <h1 class="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight flex items-center gap-2">
+        <span class="material-icons-outlined text-indigo-600 text-2xl">receipt_long</span>
+        <span>Sales & Invoice Ledger</span>
+      </h1>
+      <p class="text-xs text-slate-500 font-semibold mt-1">Review bill histories, payment methods, and customer transactions</p>
+    </div>
+
+    <div class="flex flex-col sm:flex-row items-center gap-3">
+      <div class="relative w-full sm:w-64">
+        <span class="material-icons-outlined absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 text-lg pointer-events-none">search</span>
+        <input type="text"
+               (input)="onSearch($event)"
+               placeholder="Search bill ID, customer..."
+               class="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 focus:border-indigo-500 focus:bg-white rounded-xl text-xs font-semibold text-slate-900 placeholder-slate-400 outline-none transition-all">
+      </div>
+
+      <button (click)="refreshInvoices()" title="Fetch Invoices from API" class="px-3.5 py-2.5 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-700 font-bold text-xs flex items-center justify-center gap-1.5 transition-all shrink-0 cursor-pointer">
+        <span class="material-icons-outlined text-base">refresh</span>
+        <span>Sync API</span>
+      </button>
+
+      <button (click)="deleteAll()" class="w-full sm:w-auto px-5 py-2.5 rounded-xl bg-red-50 hover:bg-red-100 text-red-600 font-bold text-xs flex items-center justify-center gap-2 transition-all shrink-0">
+        <span class="material-icons-outlined text-base">delete_sweep</span>
+        <span>Delete All</span>
+      </button>
+
+      <a routerLink="/invoices/new" class="w-full sm:w-auto px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs flex items-center justify-center gap-2 transition-all shadow-md shadow-indigo-600/20 shrink-0">
+        <span class="material-icons-outlined text-base">add</span>
+        <span>Create New Bill</span>
+      </a>
+    </div>
+  </div>
+
+  <!-- Bulk Actions Bar -->
+  @if (selectedIds().size > 0) {
+    <div class="bg-indigo-50 border border-indigo-200 p-4 rounded-2xl flex items-center justify-between gap-4 animate-fadeInUp">
+      <div class="flex items-center gap-2 text-indigo-900 font-bold text-xs">
+        <span class="material-icons-outlined text-indigo-600 text-base">check_box</span>
+        <span>{{ selectedIds().size }} invoice(s) selected</span>
+      </div>
+      <button (click)="deleteSelected()" class="px-4 py-2 bg-red-600 hover:bg-red-500 text-white font-bold text-xs rounded-xl flex items-center gap-2 shadow-xs transition-all">
+        <span class="material-icons-outlined text-base">delete</span>
+        <span>Delete Selected</span>
+      </button>
+    </div>
+  }
+
+  <!-- Invoices Table & Mobile List -->
+  <div class="bg-white rounded-2xl border border-slate-200/80 shadow-xs overflow-hidden">
+    <!-- Desktop Table View -->
+    <div class="overflow-x-auto hidden md:block">
+      <table class="w-full min-w-[700px] text-left border-collapse">
+        <thead>
+          <tr class="bg-slate-100/90 border-y border-slate-200 text-[11px] font-extrabold text-slate-700 uppercase tracking-wider select-none">
+            <th class="py-2.5 px-3 pl-5 w-10">
+              <input type="checkbox" [checked]="isAllSelected()" (change)="toggleSelectAll()" class="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer">
+            </th>
+            <th (click)="toggleSort('id')" class="py-2.5 px-3 cursor-pointer hover:text-blue-700 transition-colors">
+              <div class="flex items-center gap-1">
+                <span>Invoice ID</span>
+                <span class="material-icons-outlined text-xs">{{ getSortIcon('id') }}</span>
+              </div>
+            </th>
+            <th (click)="toggleSort('date')" class="py-2.5 px-3 cursor-pointer hover:text-blue-700 transition-colors">
+              <div class="flex items-center gap-1">
+                <span>Timestamp</span>
+                <span class="material-icons-outlined text-xs">{{ getSortIcon('date') }}</span>
+              </div>
+            </th>
+            <th (click)="toggleSort('customer')" class="py-2.5 px-3 cursor-pointer hover:text-blue-700 transition-colors">
+              <div class="flex items-center gap-1">
+                <span>Customer</span>
+                <span class="material-icons-outlined text-xs">{{ getSortIcon('customer') }}</span>
+              </div>
+            </th>
+            <th (click)="toggleSort('payment')" class="py-2.5 px-3 text-center cursor-pointer hover:text-blue-700 transition-colors">
+              <div class="flex items-center justify-center gap-1">
+                <span>Payment Mode</span>
+                <span class="material-icons-outlined text-xs">{{ getSortIcon('payment') }}</span>
+              </div>
+            </th>
+            <th (click)="toggleSort('total')" class="py-2.5 px-3 text-right cursor-pointer hover:text-blue-700 transition-colors">
+              <div class="flex items-center justify-end gap-1">
+                <span>Total Bill</span>
+                <span class="material-icons-outlined text-xs">{{ getSortIcon('total') }}</span>
+              </div>
+            </th>
+            <th (click)="toggleSort('due')" class="py-2.5 px-3 text-right cursor-pointer hover:text-blue-700 transition-colors">
+              <div class="flex items-center justify-end gap-1">
+                <span>Due Amount</span>
+                <span class="material-icons-outlined text-xs">{{ getSortIcon('due') }}</span>
+              </div>
+            </th>
+            <th class="py-2.5 px-3 pr-5 text-right">Actions</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-slate-100 text-xs">
+          @for (invoice of paginatedInvoices(); track invoice.id) {
+            <tr (click)="viewInvoiceDetails(invoice)" class="hover:bg-slate-50/80 transition-colors cursor-pointer">
+              <td class="py-2.5 px-3 pl-5 w-10" (click)="$event.stopPropagation()">
+                <input type="checkbox" [checked]="selectedIds().has(invoice.id)" (change)="toggleSelection(invoice.id)" class="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer">
+              </td>
+              <td class="py-2.5 px-3">
+                <span class="font-mono font-semibold text-slate-800 bg-slate-100 px-2 py-0.5 rounded text-[11px]">
+                  {{ invoice.id }}
+                </span>
+              </td>
+
+              <td class="py-2.5 px-3">
+                <p class="font-semibold text-slate-800 leading-tight">{{ invoice.date | date:'mediumDate' }}</p>
+                <p class="text-[10px] text-slate-500 leading-none mt-0.5">{{ invoice.date | date:'shortTime' }}</p>
+              </td>
+
+              <td class="py-2.5 px-3">
+                <p class="font-semibold text-slate-900 leading-tight">{{ invoice.customer?.name || 'Walk-in Customer' }}</p>
+                <p class="text-[10px] text-slate-500 font-normal leading-none mt-0.5">{{ invoice.items?.length || 0 }} {{ invoice.items?.length === 1 ? 'item' : 'items' }} sold</p>
+              </td>
+
+              <td class="py-2.5 px-3 text-center">
+                <span [class.bg-blue-50]="invoice.paymentMode === 'UPI'"
+                      [class.text-blue-700]="invoice.paymentMode === 'UPI'"
+                      [class.border-blue-200]="invoice.paymentMode === 'UPI'"
+                      [class.bg-emerald-50]="invoice.paymentMode === 'Cash'"
+                      [class.text-emerald-700]="invoice.paymentMode === 'Cash'"
+                      [class.border-emerald-200]="invoice.paymentMode === 'Cash'"
+                      [class.bg-purple-50]="invoice.paymentMode === 'Card'"
+                      [class.text-purple-700]="invoice.paymentMode === 'Card'"
+                      [class.border-purple-200]="invoice.paymentMode === 'Card'"
+                      class="px-2 py-0.5 rounded-full text-[10px] font-semibold border uppercase tracking-wider">
+                  {{ invoice.paymentMode }}
+                </span>
+              </td>
+
+              <td class="py-2.5 px-3 text-right font-semibold text-slate-900 text-xs">
+                {{ invoice.total | currency:'INR' }}
+              </td>
+
+              <td class="py-2.5 px-3 text-right font-semibold text-xs">
+                @if (getDueAmount(invoice) > 0) {
+                  <span class="inline-flex items-center px-2 py-0.5 rounded-md bg-rose-50 text-rose-700 border border-rose-200 font-bold">
+                    {{ getDueAmount(invoice) | currency:'INR' }}
+                  </span>
+                } @else {
+                  <span class="text-slate-400 font-normal">₹0</span>
+                }
+              </td>
+
+              <td class="py-2.5 px-3 pr-5 text-right">
+                <div class="flex items-center justify-end gap-1">
+                  <button (click)="viewInvoiceDetails(invoice); $event.stopPropagation()" title="View Full Bill" class="p-1.5 text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors">
+                    <span class="material-icons-outlined text-lg">visibility</span>
+                  </button>
+                  <button (click)="downloadInvoice(invoice); $event.stopPropagation()" title="Download PDF Invoice" class="p-1.5 text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors">
+                    <span class="material-icons-outlined text-lg">picture_as_pdf</span>
+                  </button>
+                  <a [routerLink]="['/invoices/edit', invoice.id]" (click)="$event.stopPropagation()" title="Edit Invoice" class="p-1.5 text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors">
+                    <span class="material-icons-outlined text-lg">edit</span>
+                  </a>
+                  <button (click)="deleteInvoice(invoice.id); $event.stopPropagation()" title="Delete Invoice" class="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors">
+                    <span class="material-icons-outlined text-lg">delete</span>
+                  </button>
+                </div>
+              </td>
+            </tr>
+          } @empty {
+            <tr>
+              <td colspan="7" class="p-12 text-center text-slate-400">
+                <span class="material-icons-outlined text-4xl text-slate-300 mb-2">receipt</span>
+                <p class="font-bold text-sm text-slate-600">No invoices recorded yet</p>
+              </td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Mobile Card View -->
+    <div class="md:hidden divide-y divide-slate-100">
+      @for (invoice of paginatedInvoices(); track invoice.id) {
+        <div (click)="viewInvoiceDetails(invoice)" class="p-4 space-y-3 bg-white cursor-pointer hover:bg-slate-50 transition-colors">
+          <div class="flex items-center justify-between">
+            <div>
+              <p class="font-bold text-slate-900 text-sm">{{ invoice.customer?.name || 'Walk-in Customer' }}</p>
+              <div class="flex items-center gap-2 mt-1">
+                <span class="font-mono text-[10px] font-extrabold bg-slate-100 px-2 py-0.5 rounded text-slate-700 border border-slate-200/60">
+                  {{ invoice.id }}
+                </span>
+                <span class="text-[11px] text-slate-500 font-medium">{{ invoice.date | date:'mediumDate' }}</span>
+              </div>
+            </div>
+            <div class="text-right">
+              <p class="font-extrabold text-slate-900 text-sm">{{ invoice.total | currency:'INR' }}</p>
+              @if (getDueAmount(invoice) > 0) {
+                <div class="text-[10px] font-bold text-rose-600 mt-0.5">
+                  Due: {{ getDueAmount(invoice) | currency:'INR' }}
+                </div>
+              }
+              <span [class.bg-blue-50]="invoice.paymentMode === 'UPI'"
+                    [class.text-blue-700]="invoice.paymentMode === 'UPI'"
+                    [class.border-blue-200]="invoice.paymentMode === 'UPI'"
+                    [class.bg-emerald-50]="invoice.paymentMode === 'Cash'"
+                    [class.text-emerald-700]="invoice.paymentMode === 'Cash'"
+                    [class.border-emerald-200]="invoice.paymentMode === 'Cash'"
+                    [class.bg-purple-50]="invoice.paymentMode === 'Card'"
+                    [class.text-purple-700]="invoice.paymentMode === 'Card'"
+                    [class.border-purple-200]="invoice.paymentMode === 'Card'"
+                    class="inline-block mt-1 px-1.5 py-0.5 rounded text-[9px] font-extrabold border uppercase tracking-wider">
+                {{ invoice.paymentMode }}
+              </span>
+            </div>
+          </div>
+          <div class="flex items-center justify-between border-t border-slate-50 pt-3">
+            <span class="text-[11px] text-slate-500 font-medium">{{ invoice.items?.length || 0 }} {{ invoice.items?.length === 1 ? 'item' : 'items' }} sold</span>
+            <div class="flex items-center gap-2">
+              <button (click)="downloadInvoice(invoice); $event.stopPropagation()" title="Download PDF Invoice" class="p-1.5 rounded-lg text-indigo-600 bg-indigo-50 hover:bg-indigo-100 transition-colors">
+                <span class="material-icons-outlined text-sm">picture_as_pdf</span>
+              </button>
+              <a [routerLink]="['/invoices/edit', invoice.id]" (click)="$event.stopPropagation()" title="Edit Invoice" class="p-1.5 rounded-lg text-slate-600 bg-slate-100 hover:bg-slate-200 transition-colors">
+                <span class="material-icons-outlined text-sm">edit</span>
+              </a>
+            </div>
+          </div>
+        </div>
+      } @empty {
+        <div class="p-8 text-center text-slate-400">
+          <span class="material-icons-outlined text-3xl text-slate-300 mb-2">receipt</span>
+          <p class="font-bold text-sm text-slate-600">No invoices recorded yet</p>
+        </div>
+      }
+    </div>
+
+    <!-- Pagination Footer -->
+    @if (filteredInvoices().length > 0) {
+      <div class="px-6 py-4 bg-slate-50/80 border-t border-slate-200/80 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs font-semibold text-slate-600">
+        <div class="flex items-center gap-3">
+          <span>
+            Showing <span class="font-bold text-slate-900">{{ startItemIndex() }}</span> to 
+            <span class="font-bold text-slate-900">{{ endItemIndex() }}</span> of 
+            <span class="font-bold text-slate-900">{{ filteredInvoices().length }}</span> invoices
+          </span>
+          <div class="flex items-center gap-1.5 pl-2 border-l border-slate-200">
+            <span class="text-slate-500 text-[11px]">Rows:</span>
+            <select #sizeSelect (change)="onPageSizeChange(+sizeSelect.value)" [value]="pageSize()" class="bg-white border border-slate-200 rounded-lg text-xs py-1 px-2 font-bold focus:outline-none focus:ring-1 focus:ring-indigo-500">
+              <option [value]="5">5</option>
+              <option [value]="10">10</option>
+              <option [value]="25">25</option>
+              <option [value]="50">50</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="flex items-center gap-1">
+          <button (click)="goToPage(1)" [disabled]="currentPage() === 1" class="px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-100 disabled:opacity-40 disabled:hover:bg-white text-slate-700 transition-colors" title="First Page">
+            <span class="material-icons-outlined text-sm">first_page</span>
+          </button>
+          <button (click)="goToPage(currentPage() - 1)" [disabled]="currentPage() === 1" class="px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-100 disabled:opacity-40 disabled:hover:bg-white text-slate-700 transition-colors" title="Previous Page">
+            <span class="material-icons-outlined text-sm">chevron_left</span>
+          </button>
+          
+          <span class="px-3 py-1 bg-indigo-50 border border-indigo-100 rounded-lg font-bold text-indigo-700">
+            Page {{ currentPage() }} of {{ totalPages() }}
+          </span>
+
+          <button (click)="goToPage(currentPage() + 1)" [disabled]="currentPage() === totalPages()" class="px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-100 disabled:opacity-40 disabled:hover:bg-white text-slate-700 transition-colors" title="Next Page">
+            <span class="material-icons-outlined text-sm">chevron_right</span>
+          </button>
+          <button (click)="goToPage(totalPages())" [disabled]="currentPage() === totalPages()" class="px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-100 disabled:opacity-40 disabled:hover:bg-white text-slate-700 transition-colors" title="Last Page">
+            <span class="material-icons-outlined text-sm">last_page</span>
+          </button>
+        </div>
+      </div>
+    }
+  </div>
+
+</div>
+
+<!-- Modal -->
+@if (showModal() && selectedInvoice(); as invoice) {
+  <div class="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-2 sm:p-4">
+    <div [class.w-screen]="isFullScreenModal()"
+         [class.h-screen]="isFullScreenModal()"
+         [class.max-w-none]="isFullScreenModal()"
+         [class.max-h-none]="isFullScreenModal()"
+         [class.rounded-none]="isFullScreenModal()"
+         [class.max-w-3xl]="!isFullScreenModal()"
+         [class.max-h-[92vh]]="!isFullScreenModal()"
+         [class.w-full]="!isFullScreenModal()"
+         [class.rounded-3xl]="!isFullScreenModal()"
+         class="bg-slate-100 shadow-2xl border border-slate-200 overflow-hidden animate-fadeInUp flex flex-col transition-all duration-300">
+      
+      <div class="p-4 bg-slate-900 text-white flex items-center justify-between shrink-0 gap-2">
+        <div class="flex items-center gap-3">
+          <span class="p-2 bg-indigo-600 text-white rounded-xl">
+            <span class="material-icons-outlined text-lg">receipt_long</span>
+          </span>
+          <div>
+            <h3 class="font-extrabold text-sm leading-tight">Invoice Bill Voucher Detail</h3>
+            <p class="text-[11px] text-slate-400 font-semibold">Ref ID: {{ invoice.id }} &bull; {{ invoice.date | date:'mediumDate' }}</p>
+          </div>
+        </div>
+
+        <div class="flex items-center gap-2">
+          <button type="button" (click)="toggleFullScreenModal()" [title]="isFullScreenModal() ? 'Exit Full Screen' : '100% Full Screen'" class="p-2 rounded-xl text-slate-300 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer">
+            <span class="material-icons-outlined text-lg">{{ isFullScreenModal() ? 'fullscreen_exit' : 'fullscreen' }}</span>
+          </button>
+          <button (click)="closeModal()" class="p-2 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer">
+            <span class="material-icons-outlined text-lg">close</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Template Switcher Pills -->
+      <div class="bg-white px-5 py-2.5 border-b border-slate-200 flex items-center gap-2 overflow-x-auto shrink-0">
+        <span class="text-[11px] font-black text-slate-400 uppercase tracking-wider shrink-0 mr-1">Style:</span>
+        @for (tpl of templateOptions; track tpl.id) {
+          <button type="button" (click)="switchModalTemplate(tpl.id)"
+            [class.bg-indigo-600]="activeModalTemplate() === tpl.id"
+            [class.text-white]="activeModalTemplate() === tpl.id"
+            [class.bg-slate-100]="activeModalTemplate() !== tpl.id"
+            [class.text-slate-700]="activeModalTemplate() !== tpl.id"
+            class="px-3 py-1 rounded-full text-xs font-extrabold flex items-center gap-1.5 transition-all shrink-0 cursor-pointer">
+            <span class="material-icons-outlined text-xs">{{ tpl.icon }}</span>
+            <span>{{ tpl.name }}</span>
+          </button>
+        }
+      </div>
+
+      <div #invoiceDetailContent class="overflow-y-auto p-4 sm:p-6 space-y-4 flex-1 bg-slate-200/50 flex justify-center items-start">
+        <div class="w-full max-w-2xl my-auto">
+          <app-invoice-template-preview 
+            [invoice]="invoice"
+            [template]="activeModalTemplate()">
+          </app-invoice-template-preview>
+        </div>
+      </div>
+
+      <div class="p-4 bg-white border-t border-slate-200 flex items-center gap-3 shrink-0">
+        <button (click)="downloadInvoice()" class="flex-1 py-2.5 rounded-xl border border-indigo-200 text-indigo-700 hover:bg-indigo-50 font-extrabold text-xs flex items-center justify-center gap-2 transition-colors cursor-pointer">
+          <span class="material-icons-outlined text-base">file_download</span>
+          <span>Download PDF</span>
+        </button>
+        <button (click)="prepareShare()" class="flex-1 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-extrabold text-xs flex items-center justify-center gap-2 transition-colors shadow-md shadow-indigo-600/20 cursor-pointer">
+          <span class="material-icons-outlined text-base">share</span>
+          <span>Share Voucher</span>
+        </button>
+      </div>
+    </div>
+  </div>
+}
+
+<!-- Share Confirm -->
+@if (shareableFile()) {
+  <div class="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4">
+    <div class="bg-white rounded-3xl p-6 max-w-xs w-full text-center space-y-4 shadow-2xl animate-fadeInUp">
+      <div class="w-16 h-16 bg-emerald-50 text-emerald-600 rounded-full flex items-center justify-center mx-auto">
+        <span class="material-icons-outlined text-3xl">check_circle</span>
+      </div>
+      <div>
+        <h3 class="font-extrabold text-slate-900 text-base">Invoice PDF Ready</h3>
+        <p class="text-xs text-slate-500 font-semibold mt-1">Ready to share directly with customer</p>
+      </div>
+      <div class="flex gap-2 pt-2">
+        <button (click)="clearShare()" class="flex-1 py-2 rounded-xl border border-slate-200 text-xs font-bold text-slate-700 hover:bg-slate-50">Discard</button>
+        <button (click)="executeShare()" class="flex-1 py-2 rounded-xl bg-indigo-600 text-white text-xs font-extrabold hover:bg-indigo-500">Share</button>
+      </div>
+    </div>
+  </div>
+}

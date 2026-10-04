@@ -1,0 +1,956 @@
+<div class="space-y-4 max-w-[1600px] mx-auto pb-6 relative">
+
+  @if (productService.isLoading() || invoiceService.isLoading()) {
+    <div class="fixed inset-0 bg-white/80 backdrop-blur-md z-[9999] flex items-center justify-center">
+      <app-loader message="Syncing Sales & Stock Ledger..."></app-loader>
+    </div>
+  }
+
+  <!-- HERO HEADER & QUICK ACTIONS -->
+  <div class="relative overflow-hidden rounded-3xl bg-gradient-to-r from-slate-900 via-slate-800 to-indigo-950 p-6 sm:p-7 text-white shadow-xl shadow-slate-950/10 border border-slate-700/50">
+    <!-- Decorative Ambient Glow Background Circles -->
+    <div class="absolute -right-12 -top-12 w-64 h-64 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none"></div>
+    <div class="absolute -left-12 -bottom-12 w-64 h-64 bg-emerald-500/10 rounded-full blur-3xl pointer-events-none"></div>
+
+    <div class="relative z-10 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-6">
+      
+      <!-- Title & Live Status -->
+      <div class="space-y-2">
+        <div class="flex items-center gap-2.5 flex-wrap">
+          <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 backdrop-blur-md">
+            <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+            <span>Live Sync Active</span>
+          </span>
+          <span class="inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-semibold bg-white/10 text-slate-300 backdrop-blur-md border border-white/10">
+            <span class="material-icons-outlined text-sm">schedule</span>
+            <span>Real-time Ledger</span>
+          </span>
+        </div>
+
+        <h1 class="text-2xl sm:text-3xl font-black tracking-tight text-white flex items-center gap-3">
+          {{ ts.t('nav.sales') }}
+          <span class="material-icons-outlined text-indigo-400 text-2xl sm:text-3xl">analytics</span>
+        </h1>
+        <p class="text-xs sm:text-sm font-medium text-slate-300 max-w-xl leading-relaxed">
+          Monitor POS billing, track customer receivables, collect outstanding Udhar, and analyze payment mode distribution.
+        </p>
+      </div>
+
+      <!-- Quick Action Buttons -->
+      <div class="flex items-center gap-2.5 flex-wrap">
+        <button (click)="exportSalesCsv()" 
+                class="flex items-center gap-2 px-4 py-2.5 bg-white/10 hover:bg-white/20 text-white rounded-2xl font-bold text-xs transition-all border border-white/15 backdrop-blur-md hover:scale-[1.02] active:scale-[0.98]">
+          <span class="material-icons-outlined text-base text-slate-300">file_download</span>
+          <span>Export CSV</span>
+        </button>
+
+        <a routerLink="/invoices/new" 
+           class="flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white rounded-2xl font-extrabold text-xs shadow-lg shadow-blue-600/25 transition-all hover:scale-[1.02] active:scale-[0.98]">
+          <span class="material-icons-outlined text-base">receipt_long</span>
+          <span>+ {{ ts.t('btn.newInvoice') }}</span>
+        </a>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- EXECUTIVE KPI METRIC CARDS -->
+  <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+    
+    <!-- KPI 1: Gross Sales -->
+    <div class="bg-white p-5 rounded-3xl border border-slate-200/80 shadow-xs hover:shadow-md transition-all space-y-3 relative overflow-hidden group">
+      <div class="absolute top-0 right-0 w-24 h-24 bg-blue-500/5 rounded-full blur-xl group-hover:bg-blue-500/10 transition-all"></div>
+      <div class="flex items-center justify-between">
+        <span class="text-[11px] font-black uppercase tracking-wider text-slate-400">{{ ts.t('dash.totalSales') }}</span>
+        <div class="w-10 h-10 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center font-bold border border-blue-100/80 group-hover:scale-110 transition-transform">
+          <span class="material-icons-outlined text-xl">payments</span>
+        </div>
+      </div>
+      <div class="space-y-1">
+        <p class="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight">
+          {{ totalGrossSales() | currency:'INR':'symbol':'1.0-0' }}
+        </p>
+        <div class="flex items-center justify-between text-xs font-bold text-slate-500 pt-1">
+          <span>{{ totalSalesVolume() }} Sales Bills</span>
+          <span class="text-blue-600">Avg {{ averageOrderValue() | currency:'INR':'symbol':'1.0-0' }}</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- KPI 2: Total Collected -->
+    <div class="bg-white p-5 rounded-3xl border border-slate-200/80 shadow-xs hover:shadow-md transition-all space-y-3 relative overflow-hidden group">
+      <div class="absolute top-0 right-0 w-24 h-24 bg-emerald-500/5 rounded-full blur-xl group-hover:bg-emerald-500/10 transition-all"></div>
+      <div class="flex items-center justify-between">
+        <span class="text-[11px] font-black uppercase tracking-wider text-slate-400">{{ ts.t('inv.amountPaid') }}</span>
+        <div class="w-10 h-10 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center font-bold border border-emerald-100/80 group-hover:scale-110 transition-transform">
+          <span class="material-icons-outlined text-xl">account_balance_wallet</span>
+        </div>
+      </div>
+      <div class="space-y-2">
+        <div class="flex items-baseline justify-between">
+          <p class="text-2xl sm:text-3xl font-black text-emerald-600 tracking-tight">
+            {{ totalCollected() | currency:'INR':'symbol':'1.0-0' }}
+          </p>
+          <span class="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 text-[10px] font-black">
+            {{ collectionPercentage() }}% Collected
+          </span>
+        </div>
+        <!-- Progress Bar -->
+        <div class="w-full bg-slate-100 h-2 rounded-full overflow-hidden">
+          <div class="bg-emerald-500 h-full rounded-full transition-all duration-500" [style.width.%]="collectionPercentage()"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- KPI 3: Outstanding Udhar -->
+    <div class="bg-white p-5 rounded-3xl border border-slate-200/80 shadow-xs hover:shadow-md transition-all space-y-3 relative overflow-hidden group"
+         [class.border-rose-300]="totalOutstandingDues() > 0">
+      <div class="absolute top-0 right-0 w-24 h-24 bg-rose-500/5 rounded-full blur-xl group-hover:bg-rose-500/10 transition-all"></div>
+      <div class="flex items-center justify-between">
+        <span class="text-[11px] font-black uppercase tracking-wider text-slate-400">{{ ts.t('dash.pendingDues') }}</span>
+        <div class="w-10 h-10 rounded-2xl bg-amber-50 text-amber-600 flex items-center justify-center font-bold border border-amber-100/80 group-hover:scale-110 transition-transform">
+          <span class="material-icons-outlined text-xl">pending_actions</span>
+        </div>
+      </div>
+      <div class="space-y-1">
+        <p class="text-2xl sm:text-3xl font-black text-amber-600 tracking-tight">
+          {{ totalOutstandingDues() | currency:'INR':'symbol':'1.0-0' }}
+        </p>
+        <div class="flex items-center justify-between text-xs font-bold">
+          <span class="text-rose-600">{{ dueSalesCount() }} Unpaid Bills</span>
+          <button (click)="paymentFilter.set('due')" class="text-amber-700 underline font-extrabold hover:text-amber-800">
+            Filter Dues
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- KPI 4: Today's Live Sales -->
+    <div class="bg-white p-5 rounded-3xl border border-slate-200/80 shadow-xs hover:shadow-md transition-all space-y-3 relative overflow-hidden group">
+      <div class="absolute top-0 right-0 w-24 h-24 bg-purple-500/5 rounded-full blur-xl group-hover:bg-purple-500/10 transition-all"></div>
+      <div class="flex items-center justify-between">
+        <span class="text-[11px] font-black uppercase tracking-wider text-slate-400">{{ ts.t('dash.todaySales') }}</span>
+        <div class="w-10 h-10 rounded-2xl bg-purple-50 text-purple-600 flex items-center justify-center font-bold border border-purple-100/80 group-hover:scale-110 transition-transform">
+          <span class="material-icons-outlined text-xl">today</span>
+        </div>
+      </div>
+      <div class="space-y-1">
+        <p class="text-2xl sm:text-3xl font-black text-purple-700 tracking-tight">
+          {{ todaySalesTotal() | currency:'INR':'symbol':'1.0-0' }}
+        </p>
+        <p class="text-xs font-bold text-slate-500 flex items-center gap-1">
+          <span class="w-2 h-2 rounded-full bg-purple-500"></span>
+          <span>{{ todaySalesCount() }} Bills generated today</span>
+        </p>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- NAVIGATION TABS & SEARCH / FILTER PANEL -->
+  <div class="bg-white rounded-3xl border border-slate-200/80 shadow-xs overflow-hidden">
+    
+    <!-- Tab Controls & Filter Header -->
+    <div class="p-4 sm:p-5 border-b border-slate-200/80 flex flex-col lg:flex-row lg:items-center justify-between gap-4 bg-slate-50/50">
+      
+      <!-- Fancy Tabs -->
+      <nav class="w-full lg:w-auto min-w-0 flex items-center gap-1.5 bg-slate-200/70 p-1.5 rounded-2xl overflow-x-auto custom-scrollbar">
+        
+        <button (click)="activeTab.set('register')"
+                [class.bg-white]="activeTab() === 'register'"
+                [class.text-blue-700]="activeTab() === 'register'"
+                [class.shadow-xs]="activeTab() === 'register'"
+                class="flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-extrabold text-slate-600 hover:text-slate-900 transition-all whitespace-nowrap">
+          <span class="material-icons-outlined text-base">receipt_long</span>
+          <span>Sales Register</span>
+          <span class="ml-1 px-2 py-0.5 rounded-full text-[10px] font-black"
+                [class.bg-blue-100]="activeTab() === 'register'"
+                [class.text-blue-700]="activeTab() === 'register'"
+                [class.bg-slate-300/60]="activeTab() !== 'register'"
+                [class.text-slate-700]="activeTab() !== 'register'">
+            {{ filteredSales().length }}
+          </span>
+        </button>
+
+        <button (click)="activeTab.set('inventory')"
+                [class.bg-white]="activeTab() === 'inventory'"
+                [class.text-emerald-700]="activeTab() === 'inventory'"
+                [class.shadow-xs]="activeTab() === 'inventory'"
+                class="flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-extrabold text-slate-600 hover:text-slate-900 transition-all whitespace-nowrap">
+          <span class="material-icons-outlined text-base">inventory</span>
+          <span>Products & Stock</span>
+          <span class="ml-1 px-2 py-0.5 rounded-full text-[10px] font-black"
+                [class.bg-emerald-100]="activeTab() === 'inventory'"
+                [class.text-emerald-700]="activeTab() === 'inventory'"
+                [class.bg-slate-300/60]="activeTab() !== 'inventory'"
+                [class.text-slate-700]="activeTab() !== 'inventory'">
+            {{ productService.products().length }}
+          </span>
+        </button>
+
+        <button (click)="activeTab.set('items')"
+                [class.bg-white]="activeTab() === 'items'"
+                [class.text-indigo-700]="activeTab() === 'items'"
+                [class.shadow-xs]="activeTab() === 'items'"
+                class="flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-extrabold text-slate-600 hover:text-slate-900 transition-all whitespace-nowrap">
+          <span class="material-icons-outlined text-base">inventory_2</span>
+          <span>{{ ts.t('dash.topSelling') }}</span>
+        </button>
+
+        <button (click)="activeTab.set('customers')"
+                [class.bg-white]="activeTab() === 'customers'"
+                [class.text-purple-700]="activeTab() === 'customers'"
+                [class.shadow-xs]="activeTab() === 'customers'"
+                class="flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-extrabold text-slate-600 hover:text-slate-900 transition-all whitespace-nowrap">
+          <span class="material-icons-outlined text-base">groups</span>
+          <span>{{ ts.t('cust.title') }}</span>
+        </button>
+
+        <button (click)="activeTab.set('analytics')"
+                [class.bg-white]="activeTab() === 'analytics'"
+                [class.text-emerald-700]="activeTab() === 'analytics'"
+                [class.shadow-xs]="activeTab() === 'analytics'"
+                class="flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-extrabold text-slate-600 hover:text-slate-900 transition-all whitespace-nowrap">
+          <span class="material-icons-outlined text-base">pie_chart</span>
+          <span>Payment Breakdown</span>
+        </button>
+
+      </nav>
+
+      <!-- Search & Filters -->
+      <div class="w-full lg:w-auto min-w-0 flex items-center justify-start lg:justify-end gap-2.5 flex-wrap">
+        
+        <!-- Instant Search Box -->
+        <div class="relative min-w-[220px] flex-1 sm:flex-none">
+          <span class="material-icons-outlined absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 text-base pointer-events-none">search</span>
+          <input type="text" 
+                 [ngModel]="searchTerm()" 
+                 (ngModelChange)="searchTerm.set($event)"
+                 placeholder="Search Bill #, customer, phone..." 
+                 class="w-full pl-9 pr-8 py-2 bg-white border border-slate-200/90 rounded-2xl text-xs font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all shadow-2xs">
+          @if (searchTerm()) {
+            <button (click)="searchTerm.set('')" class="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
+              <span class="material-icons-outlined text-sm">cancel</span>
+            </button>
+          }
+        </div>
+
+        <!-- Date Range Select -->
+        <div class="relative">
+          <select [ngModel]="dateFilter()" 
+                  (ngModelChange)="dateFilter.set($event)"
+                  class="pl-3 pr-8 py-2 bg-white border border-slate-200/90 rounded-2xl text-xs font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 cursor-pointer shadow-2xs appearance-none">
+            <option value="all">📅 All Dates</option>
+            <option value="today">Today</option>
+            <option value="this_week">Past 7 Days</option>
+            <option value="this_month">This Month</option>
+          </select>
+          <span class="material-icons-outlined text-sm text-slate-400 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none">expand_more</span>
+        </div>
+
+        <!-- Payment Status Select -->
+        <div class="relative">
+          <select [ngModel]="paymentFilter()" 
+                  (ngModelChange)="paymentFilter.set($event)"
+                  class="pl-3 pr-8 py-2 bg-white border border-slate-200/90 rounded-2xl text-xs font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 cursor-pointer shadow-2xs appearance-none">
+            <option value="all">💳 All Status & Modes</option>
+            <option value="paid">✅ Fully Paid</option>
+            <option value="due">⚠️ Has Outstanding Udhar</option>
+            <option value="cash">💵 Cash Sales</option>
+            <option value="upi">📱 UPI Sales</option>
+            <option value="card">💳 Card Sales</option>
+          </select>
+          <span class="material-icons-outlined text-sm text-slate-400 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none">expand_more</span>
+        </div>
+
+      </div>
+
+    </div>
+
+    <!-- TAB 1: SALES REGISTER TABLE -->
+    @if (activeTab() === 'register') {
+      <!-- Bulk Actions Bar -->
+      @if (selectedIds().size > 0) {
+        <div class="bg-indigo-50 border border-indigo-200 p-4 rounded-2xl flex items-center justify-between gap-4 mb-4 animate-fadeInUp">
+          <div class="flex items-center gap-2 text-indigo-900 font-bold text-xs">
+            <span class="material-icons-outlined text-indigo-600 text-base">check_box</span>
+            <span>{{ selectedIds().size }} sale record(s) selected</span>
+          </div>
+          <button (click)="deleteSelected()" class="px-4 py-2 bg-red-600 hover:bg-red-500 text-white font-bold text-xs rounded-xl flex items-center gap-2 shadow-xs transition-all">
+            <span class="material-icons-outlined text-base">delete</span>
+            <span>Delete Selected</span>
+          </button>
+        </div>
+      }
+
+      <div class="overflow-x-auto">
+        <table class="w-full min-w-[1050px] text-left border-collapse">
+          <thead>
+            <tr class="bg-slate-100/70 border-b border-slate-200 text-[11px] font-black text-slate-500 uppercase tracking-wider select-none">
+              <th class="py-3.5 px-4 w-10">
+                <input type="checkbox" [checked]="isAllSelected()" (change)="toggleSelectAll()" class="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer">
+              </th>
+              <th (click)="toggleSort('date')" class="py-3.5 px-4 cursor-pointer hover:bg-slate-200/50 transition-colors">
+                <div class="flex items-center gap-1">
+                  <span>Invoice & Date</span>
+                  <span class="material-icons-outlined text-sm text-blue-600">{{ getSortIcon('date') }}</span>
+                </div>
+              </th>
+              <th (click)="toggleSort('customer')" class="py-3.5 px-4 cursor-pointer hover:bg-slate-200/50 transition-colors">
+                <div class="flex items-center gap-1">
+                  <span>Customer Name</span>
+                  <span class="material-icons-outlined text-sm text-blue-600">{{ getSortIcon('customer') }}</span>
+                </div>
+              </th>
+              <th class="py-3.5 px-4">Items Summary</th>
+              <th class="py-3.5 px-4">Payment Channel</th>
+              <th (click)="toggleSort('total')" class="py-3.5 px-4 text-right cursor-pointer hover:bg-slate-200/50 transition-colors">
+                <div class="flex items-center justify-end gap-1">
+                  <span>Grand Total</span>
+                  <span class="material-icons-outlined text-sm text-blue-600">{{ getSortIcon('total') }}</span>
+                </div>
+              </th>
+              <th (click)="toggleSort('due')" class="py-3.5 px-4 text-right cursor-pointer hover:bg-slate-200/50 transition-colors">
+                <div class="flex items-center justify-end gap-1">
+                  <span>Payment Status</span>
+                  <span class="material-icons-outlined text-sm text-blue-600">{{ getSortIcon('due') }}</span>
+                </div>
+              </th>
+              <th class="py-3.5 px-4 text-center">Quick Actions</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-slate-100 text-xs">
+            @for (sale of filteredSales(); track sale.id) {
+              <tr class="hover:bg-blue-50/40 transition-colors group cursor-pointer" (click)="viewSaleDetails(sale)">
+                
+                <td class="py-4 px-4 w-10" (click)="$event.stopPropagation()">
+                  <input type="checkbox" [checked]="selectedIds().has(sale.id)" (change)="toggleSelection(sale.id)" class="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer">
+                </td>
+
+                <!-- Bill ID & Date -->
+                <td class="py-4 px-4">
+                  <div class="font-extrabold text-blue-700 group-hover:text-blue-900 group-hover:underline flex items-center gap-2">
+                    <span class="px-2 py-0.5 rounded-md bg-blue-50 border border-blue-200 text-blue-700 text-[11px] font-black">
+                      #{{ sale.id }}
+                    </span>
+                  </div>
+                  <div class="text-[11px] font-semibold text-slate-500 mt-1 flex items-center gap-1">
+                    <span class="material-icons-outlined text-xs text-slate-400">schedule</span>
+                    <span>{{ sale.date | date:'mediumDate' }} • {{ sale.date | date:'shortTime' }}</span>
+                  </div>
+                </td>
+
+                <!-- Customer Info -->
+                <td class="py-4 px-4">
+                  <div class="flex items-center gap-2.5">
+                    <div class="w-8 h-8 rounded-full bg-gradient-to-tr from-purple-500 to-indigo-600 text-white font-extrabold flex items-center justify-center text-xs shadow-xs">
+                      {{ (sale.customer?.name || 'W')[0].toUpperCase() }}
+                    </div>
+                    <div>
+                      <div class="font-extrabold text-slate-900 truncate max-w-[180px]">
+                        {{ sale.customer?.name || 'Walk-in Customer' }}
+                      </div>
+                      @if (sale.customer?.phone) {
+                        <div class="text-[11px] font-semibold text-slate-500 flex items-center gap-0.5 mt-0.5">
+                          <span class="material-icons-outlined text-xs text-slate-400">call</span>
+                          <span>{{ sale.customer?.phone }}</span>
+                        </div>
+                      }
+                    </div>
+                  </div>
+                </td>
+
+                <!-- Items Summary -->
+                <td class="py-4 px-4">
+                  <div class="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-slate-100 text-slate-800 font-bold text-[11px] border border-slate-200/80">
+                    <span class="material-icons-outlined text-xs text-indigo-600">shopping_bag</span>
+                    <span>{{ sale.items.length }} {{ sale.items.length === 1 ? 'item' : 'items' }}</span>
+                  </div>
+                </td>
+
+                <!-- Payment Mode Badge -->
+                <td class="py-4 px-4">
+                  <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-black border uppercase tracking-wider"
+                        [class.bg-purple-50]="sale.paymentMode === 'UPI'"
+                        [class.text-purple-700]="sale.paymentMode === 'UPI'"
+                        [class.border-purple-200]="sale.paymentMode === 'UPI'"
+                        [class.bg-emerald-50]="sale.paymentMode === 'Cash'"
+                        [class.text-emerald-700]="sale.paymentMode === 'Cash'"
+                        [class.border-emerald-200]="sale.paymentMode === 'Cash'"
+                        [class.bg-blue-50]="sale.paymentMode === 'Card'"
+                        [class.text-blue-700]="sale.paymentMode === 'Card'"
+                        [class.border-blue-200]="sale.paymentMode === 'Card'">
+                    <span class="w-1.5 h-1.5 rounded-full bg-current"></span>
+                    <span>{{ sale.paymentMode || 'Cash' }}</span>
+                  </span>
+                </td>
+
+                <!-- Bill Total -->
+                <td class="py-4 px-4 text-right">
+                  <div class="font-black text-slate-900 text-sm">
+                    {{ sale.total | currency:'INR':'symbol':'1.2-2' }}
+                  </div>
+                  @if (sale.totalDiscount) {
+                    <div class="text-[10px] font-bold text-emerald-600">
+                      Saved: -{{ sale.totalDiscount | currency:'INR':'symbol':'1.0-0' }}
+                    </div>
+                  }
+                </td>
+
+                <!-- Due / Status -->
+                <td class="py-4 px-4 text-right">
+                  @let due = getDueAmount(sale);
+                  @let status = getPaymentStatus(sale);
+                  
+                  <span class="inline-flex items-center gap-1 px-3 py-1 rounded-xl text-[11px] font-extrabold border" [class]="status.class">
+                    <span>{{ status.label }}</span>
+                  </span>
+
+                  @if (due > 0) {
+                    <div class="text-xs font-black text-rose-600 mt-1">
+                      Due: {{ due | currency:'INR':'symbol':'1.2-2' }}
+                    </div>
+                  }
+                </td>
+
+                <!-- Action Buttons -->
+                <td class="py-4 px-4 text-center" (click)="$event.stopPropagation()">
+                  <div class="flex items-center justify-center gap-1">
+                    <button (click)="viewSaleDetails(sale)" 
+                            title="View Receipt Details"
+                            class="p-2 text-slate-500 hover:text-blue-600 hover:bg-blue-100/60 rounded-xl transition-all">
+                      <span class="material-icons-outlined text-lg">visibility</span>
+                    </button>
+
+                    <button (click)="downloadSalePdf(sale, $event)" 
+                            title="Download PDF Invoice"
+                            class="p-2 text-slate-500 hover:text-emerald-600 hover:bg-emerald-100/60 rounded-xl transition-all">
+                      <span class="material-icons-outlined text-lg">picture_as_pdf</span>
+                    </button>
+
+                    @if (getDueAmount(sale) > 0) {
+                      <button (click)="openRecordPaymentModal(sale, $event)" 
+                              title="Record Udhar Payment"
+                              class="p-2 text-amber-600 hover:text-amber-700 hover:bg-amber-100/60 rounded-xl transition-all font-bold">
+                        <span class="material-icons-outlined text-lg">add_card</span>
+                      </button>
+
+                      <button (click)="sendWhatsAppReminder(sale, $event)" 
+                              title="Send WhatsApp Payment Request"
+                              class="p-2 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-100/60 rounded-xl transition-all">
+                        <span class="material-icons-outlined text-lg">chat</span>
+                      </button>
+                    }
+
+                    <button (click)="deleteSale(sale, $event)" 
+                            title="Delete Sale Record"
+                            class="p-2 text-slate-500 hover:text-red-600 hover:bg-red-100/60 rounded-xl transition-all">
+                      <span class="material-icons-outlined text-lg">delete</span>
+                    </button>
+                  </div>
+                </td>
+
+              </tr>
+            } @empty {
+              <tr>
+                <td colspan="7" class="py-16 text-center text-slate-400">
+                  <div class="space-y-3 max-w-sm mx-auto">
+                    <div class="w-16 h-16 rounded-full bg-slate-100 text-slate-400 inline-flex items-center justify-center">
+                      <span class="material-icons-outlined text-3xl">receipt_long</span>
+                    </div>
+                    <div>
+                      <p class="font-extrabold text-slate-800 text-base">No sales transactions found</p>
+                      <p class="text-xs text-slate-400 mt-1">Try resetting your date or status filters, or generate a sale bill from the POS terminal.</p>
+                    </div>
+                  </div>
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    }
+
+    <!-- TAB: PRODUCTS & STOCK INVENTORY -->
+    @if (activeTab() === 'inventory') {
+      <div class="p-4 sm:p-6 space-y-4">
+        <!-- Filter and Search Header for Inventory -->
+        <div class="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-slate-50 p-3.5 rounded-2xl border border-slate-200/80">
+          <!-- Search Product -->
+          <div class="relative flex-1">
+            <span class="material-icons-outlined absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 text-base pointer-events-none">search</span>
+            <input type="text" 
+                   [ngModel]="productSearchTerm()" 
+                   (ngModelChange)="productSearchTerm.set($event)"
+                   placeholder="Search product name, SKU, or category..." 
+                   class="w-full pl-9 pr-8 py-2 bg-white border border-slate-200/90 rounded-xl text-xs font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all shadow-2xs">
+            @if (productSearchTerm()) {
+              <button (click)="productSearchTerm.set('')" class="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
+                <span class="material-icons-outlined text-sm">cancel</span>
+              </button>
+            }
+          </div>
+
+          <!-- Stock Level Filter -->
+          <div class="flex items-center gap-2">
+            <div class="relative min-w-[150px]">
+              <select [ngModel]="stockFilter()" 
+                      (ngModelChange)="stockFilter.set($event)"
+                      class="w-full pl-3 pr-8 py-2 bg-white border border-slate-200/90 rounded-xl text-xs font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 cursor-pointer shadow-2xs appearance-none">
+                <option value="all">📦 All Stock Levels</option>
+                <option value="in_stock">✅ In Stock</option>
+                <option value="low_stock">⚠️ Low Stock Alert</option>
+                <option value="out_of_stock">❌ Out of Stock</option>
+              </select>
+              <span class="material-icons-outlined text-sm text-slate-400 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none">expand_more</span>
+            </div>
+
+            <button (click)="productService.fetchProductsFromApi(true)" 
+                    title="Refresh Product Catalog from Server"
+                    class="p-2 rounded-xl bg-white border border-slate-200/90 hover:bg-slate-50 text-slate-600 hover:text-slate-900 transition-all shadow-2xs">
+              <span class="material-icons-outlined text-base">refresh</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Inventory Products Table -->
+        <div class="overflow-x-auto">
+          <table class="w-full min-w-[1000px] text-left border-collapse">
+            <thead>
+              <tr class="bg-slate-100/70 border-b border-slate-200 text-[11px] font-black text-slate-500 uppercase tracking-wider">
+                <th class="py-3.5 px-4 w-[28%]">Product Details</th>
+                <th class="py-3.5 px-4">SKU / Code</th>
+                <th class="py-3.5 px-4 text-right">Cost Price</th>
+                <th class="py-3.5 px-4 text-right">Selling Price</th>
+                <th class="py-3.5 px-4 text-center">Remaining Stock</th>
+                <th class="py-3.5 px-4 text-center">Quick Adjust</th>
+                <th class="py-3.5 px-4 text-center">Status</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-100 text-xs font-semibold">
+              @for (prod of filteredInventoryProducts(); track prod.id) {
+                <tr class="hover:bg-slate-50/80 transition-colors">
+                  <td class="py-3.5 px-4">
+                    <div class="flex items-center gap-3">
+                      <div class="w-9 h-9 rounded-xl bg-slate-100 flex items-center justify-center overflow-hidden border border-slate-200/80 shrink-0">
+                        @if (prod.imageUrls && prod.imageUrls.length > 0 && prod.imageUrls[0]) {
+                          <img [src]="prod.imageUrls[0]" [alt]="prod.name" class="w-full h-full object-cover">
+                        } @else {
+                          <span class="material-icons-outlined text-slate-400 text-lg">inventory_2</span>
+                        }
+                      </div>
+                      <div class="min-w-0">
+                        <p class="font-black text-slate-900 text-xs sm:text-sm truncate" [title]="prod.name">{{ prod.name }}</p>
+                        <p class="text-[11px] font-bold text-slate-400">{{ prod.category || 'General' }}</p>
+                      </div>
+                    </div>
+                  </td>
+                  <td class="py-3.5 px-4">
+                    <span class="px-2 py-0.5 rounded-md bg-slate-100 text-slate-700 font-mono font-bold text-[11px] border border-slate-200">
+                      {{ prod.sku }}
+                    </span>
+                  </td>
+                  <td class="py-3.5 px-4 text-right font-bold text-slate-500">
+                    {{ prod.purchasePrice | currency:'INR':'symbol':'1.0-0' }}
+                  </td>
+                  <td class="py-3.5 px-4 text-right font-black text-slate-900">
+                    {{ prod.sellingPrice | currency:'INR':'symbol':'1.0-0' }}
+                  </td>
+                  <td class="py-3.5 px-4 text-center">
+                    <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl font-black text-xs shadow-2xs"
+                          [class.bg-emerald-100]="prod.quantity > (prod.minStockAlert || 5)"
+                          [class.text-emerald-800]="prod.quantity > (prod.minStockAlert || 5)"
+                          [class.bg-amber-100]="prod.quantity > 0 && prod.quantity <= (prod.minStockAlert || 5)"
+                          [class.text-amber-800]="prod.quantity > 0 && prod.quantity <= (prod.minStockAlert || 5)"
+                          [class.bg-rose-100]="prod.quantity <= 0"
+                          [class.text-rose-800]="prod.quantity <= 0">
+                      <span class="material-icons-outlined text-xs">
+                        {{ prod.quantity <= 0 ? 'cancel' : (prod.quantity <= (prod.minStockAlert || 5) ? 'warning' : 'check_circle') }}
+                      </span>
+                      <span>{{ prod.quantity }} units</span>
+                    </span>
+                  </td>
+                  <td class="py-3.5 px-4 text-center">
+                    <div class="inline-flex items-center gap-1 bg-slate-100 p-1 rounded-xl border border-slate-200/80">
+                      <button (click)="adjustProductStock(prod, -1)" 
+                              [disabled]="prod.quantity <= 0"
+                              title="Decrease 1 unit"
+                              class="w-6 h-6 rounded-lg bg-white hover:bg-rose-50 text-slate-700 hover:text-rose-600 disabled:opacity-40 disabled:hover:bg-white flex items-center justify-center font-black transition-colors shadow-2xs">
+                        -
+                      </button>
+                      <button (click)="adjustProductStock(prod, 1)" 
+                              title="Increase 1 unit"
+                              class="w-6 h-6 rounded-lg bg-white hover:bg-emerald-50 text-slate-700 hover:text-emerald-600 flex items-center justify-center font-black transition-colors shadow-2xs">
+                        +
+                      </button>
+                      <button (click)="adjustProductStock(prod, 5)" 
+                              title="Add 5 units (Quick Restock)"
+                              class="px-1.5 h-6 rounded-lg bg-white hover:bg-indigo-50 text-slate-700 hover:text-indigo-600 text-[10px] font-black transition-colors shadow-2xs">
+                        +5
+                      </button>
+                    </div>
+                  </td>
+                  <td class="py-3.5 px-4 text-center">
+                    @if (prod.quantity <= 0) {
+                      <span class="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-rose-50 text-rose-700 border border-rose-200">
+                        Out of Stock
+                      </span>
+                    } @else if (prod.quantity <= (prod.minStockAlert || 5)) {
+                      <span class="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-amber-50 text-amber-700 border border-amber-200">
+                        Low Stock Alert
+                      </span>
+                    } @else {
+                      <span class="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-emerald-50 text-emerald-700 border border-emerald-200">
+                        Healthy
+                      </span>
+                    }
+                  </td>
+                </tr>
+              } @empty {
+                <tr>
+                  <td colspan="7" class="py-12 text-center text-slate-400 font-medium">
+                    No products matching your search or stock filter.
+                  </td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      </div>
+    }
+
+    <!-- TAB 2: TOP SOLD PRODUCTS -->
+    @if (activeTab() === 'items') {
+      <div class="p-6">
+        <div class="flex items-center justify-between mb-6">
+          <div>
+            <h3 class="font-black text-base text-slate-900">Top Selling Products Leaderboard</h3>
+            <p class="text-xs font-semibold text-slate-500">Sorted by highest revenue generated</p>
+          </div>
+          <span class="text-xs font-extrabold text-indigo-700 bg-indigo-50 px-3 py-1 rounded-full border border-indigo-100">
+            {{ topSellingProducts().length }} Unique SKUs
+          </span>
+        </div>
+
+        <div class="overflow-x-auto">
+          <table class="w-full min-w-[700px] text-left border-collapse">
+            <thead>
+              <tr class="bg-slate-100/70 border-b border-slate-200 text-[11px] font-black text-slate-500 uppercase tracking-wider">
+                <th class="py-3.5 px-4 text-center">Rank</th>
+                <th class="py-3.5 px-4 w-[28%]">Product Name</th>
+                <th class="py-3.5 px-4">SKU Code</th>
+                <th class="py-3.5 px-4 text-center">Units Sold</th>
+                <th class="py-3.5 px-4 text-right">Revenue Generated</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-100 text-xs font-semibold">
+              @for (item of topSellingProducts(); track item.id; let i = $index) {
+                <tr class="hover:bg-slate-50 transition-colors">
+                  <td class="py-4 px-4 text-center">
+                    <span class="w-7 h-7 rounded-full font-black text-xs inline-flex items-center justify-center shadow-2xs"
+                          [class.bg-amber-100]="i === 0" [class.text-amber-800]="i === 0"
+                          [class.bg-slate-200]="i === 1" [class.text-slate-800]="i === 1"
+                          [class.bg-orange-100]="i === 2" [class.text-orange-800]="i === 2"
+                          [class.bg-slate-100]="i > 2" [class.text-slate-600]="i > 2">
+                      #{{ i + 1 }}
+                    </span>
+                  </td>
+                  <td class="py-4 px-4 max-w-[280px] font-black text-slate-900 text-sm">
+                    <span class="block truncate" [title]="item.name">{{ item.name }}</span>
+                  </td>
+                  <td class="py-4 px-4">
+                    <span class="px-2.5 py-1 rounded-lg bg-slate-100 text-slate-700 font-mono font-bold text-[11px] border border-slate-200">
+                      {{ item.sku }}
+                    </span>
+                  </td>
+                  <td class="py-4 px-4 text-center">
+                    <span class="px-3 py-1 rounded-xl bg-indigo-50 text-indigo-700 font-black text-xs">
+                      {{ item.qty }} units
+                    </span>
+                  </td>
+                  <td class="py-4 px-4 text-right font-black text-emerald-600 text-sm">
+                    {{ item.revenue | currency:'INR':'symbol':'1.2-2' }}
+                  </td>
+                </tr>
+              } @empty {
+                <tr>
+                  <td colspan="5" class="py-12 text-center text-slate-400 font-medium">
+                    No product sales records registered yet.
+                  </td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      </div>
+    }
+
+    <!-- TAB 3: CUSTOMER LEDGER & DUES -->
+    @if (activeTab() === 'customers') {
+      <div class="p-6">
+        <div class="flex items-center justify-between mb-6">
+          <div>
+            <h3 class="font-black text-base text-slate-900">Customer Purchase & Udhar Ledger</h3>
+            <p class="text-xs font-semibold text-slate-500">Track individual buyer lifetime value & credit dues</p>
+          </div>
+          <span class="text-xs font-extrabold text-purple-700 bg-purple-50 px-3 py-1 rounded-full border border-purple-100">
+            {{ customerSalesSummary().length }} Buyers
+          </span>
+        </div>
+
+        <div class="overflow-x-auto">
+          <table class="w-full min-w-[760px] text-left border-collapse">
+            <thead>
+              <tr class="bg-slate-100/70 border-b border-slate-200 text-[11px] font-black text-slate-500 uppercase tracking-wider">
+                <th class="py-3.5 px-4">Customer Name</th>
+                <th class="py-3.5 px-4">Phone Number</th>
+                <th class="py-3.5 px-4 text-center">Orders Count</th>
+                <th class="py-3.5 px-4 text-right">Total Purchased</th>
+                <th class="py-3.5 px-4 text-right">Udhar Balance</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-100 text-xs font-semibold">
+              @for (cust of customerSalesSummary(); track cust.name) {
+                <tr class="hover:bg-slate-50 transition-colors">
+                  <td class="py-4 px-4 font-black text-slate-900">
+                    <div class="flex items-center gap-2 min-w-0">
+                      <span class="w-7 h-7 rounded-full bg-purple-100 text-purple-700 font-extrabold flex items-center justify-center text-xs shrink-0">
+                        {{ cust.name[0].toUpperCase() }}
+                      </span>
+                      <span class="truncate">{{ cust.name }}</span>
+                    </div>
+                  </td>
+                  <td class="py-4 px-4 text-slate-600 font-mono">{{ cust.phone }}</td>
+                  <td class="py-4 px-4 text-center font-bold text-slate-800">
+                    <span class="px-2.5 py-1 rounded-lg bg-slate-100 text-slate-700 text-xs">
+                      {{ cust.salesCount }} bills
+                    </span>
+                  </td>
+                  <td class="py-4 px-4 text-right font-black text-slate-900 text-sm">
+                    {{ cust.totalSpent | currency:'INR':'symbol':'1.2-2' }}
+                  </td>
+                  <td class="py-4 px-4 text-right">
+                    @if (cust.totalDues > 0) {
+                      <span class="font-black text-rose-700 bg-rose-50 px-3 py-1 rounded-xl border border-rose-200 inline-flex items-center gap-1">
+                        <span class="material-icons-outlined text-xs">warning</span>
+                        <span>{{ cust.totalDues | currency:'INR':'symbol':'1.2-2' }}</span>
+                      </span>
+                    } @else {
+                      <span class="font-bold text-emerald-700 bg-emerald-50 px-3 py-1 rounded-xl border border-emerald-200">
+                        Clear
+                      </span>
+                    }
+                  </td>
+                </tr>
+              } @empty {
+                <tr>
+                  <td colspan="5" class="py-12 text-center text-slate-400 font-medium">
+                    No customer sales summary records available.
+                  </td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      </div>
+    }
+
+    <!-- TAB 4: PAYMENT BREAKDOWN -->
+    @if (activeTab() === 'analytics') {
+      <div class="p-6 space-y-6">
+        <div>
+          <h3 class="font-black text-base text-slate-900">Payment Modes & Channel Volume Distribution</h3>
+          <p class="text-xs font-semibold text-slate-500">Breakdown of sales revenue by Cash, UPI, and Card</p>
+        </div>
+        
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-5">
+          @for (pm of paymentModeBreakdown(); track pm.mode) {
+            <div class="bg-slate-50 p-6 rounded-3xl border border-slate-200/90 space-y-4 hover:shadow-md transition-all">
+              <div class="flex items-center justify-between">
+                <span class="font-black text-xs uppercase tracking-wider text-slate-500">{{ pm.mode }} Sales</span>
+                <div class="w-10 h-10 rounded-2xl flex items-center justify-center font-bold"
+                     [class.bg-emerald-100]="pm.mode === 'Cash'" [class.text-emerald-700]="pm.mode === 'Cash'"
+                     [class.bg-purple-100]="pm.mode === 'UPI'" [class.text-purple-700]="pm.mode === 'UPI'"
+                     [class.bg-blue-100]="pm.mode === 'Card'" [class.text-blue-700]="pm.mode === 'Card'">
+                  <span class="material-icons-outlined text-xl">
+                    {{ pm.mode === 'Cash' ? 'payments' : (pm.mode === 'UPI' ? 'qr_code_2' : 'credit_card') }}
+                  </span>
+                </div>
+              </div>
+
+              <div class="space-y-1">
+                <p class="text-3xl font-black text-slate-900 tracking-tight">{{ pm.total | currency:'INR':'symbol':'1.0-0' }}</p>
+                <p class="text-xs font-semibold text-slate-500">{{ pm.count }} Successful Transactions</p>
+              </div>
+            </div>
+          }
+        </div>
+      </div>
+    }
+
+  </div>
+
+  <!-- VIEW SALE DETAILS MODAL -->
+  @if (showDetailModal() && selectedSale(); as sale) {
+    <div class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-xs animate-fade-in">
+      <div class="bg-white rounded-3xl shadow-2xl border border-slate-200 w-full max-w-2xl max-h-[90vh] flex flex-col overflow-hidden">
+        
+        <!-- Modal Header -->
+        <div class="p-5 border-b border-slate-200 flex items-center justify-between bg-slate-900 text-white">
+          <div>
+            <div class="flex items-center gap-2">
+              <span class="px-2.5 py-0.5 bg-blue-500/20 text-blue-300 text-xs font-black rounded-lg border border-blue-400/30">Bill #{{ sale.id }}</span>
+              <span class="text-xs text-slate-400 font-medium">{{ sale.date | date:'medium' }}</span>
+            </div>
+            <h2 class="text-xl font-black text-white mt-1">Sale Invoice Receipt</h2>
+          </div>
+          <button (click)="closeModal()" class="p-2 text-slate-400 hover:text-white hover:bg-white/10 rounded-xl transition-colors">
+            <span class="material-icons-outlined text-xl">close</span>
+          </button>
+        </div>
+
+        <!-- Modal Body -->
+        <div class="p-6 overflow-y-auto space-y-6 flex-1 custom-scrollbar text-xs">
+          
+          <!-- Customer & Payment Metadata -->
+          <div class="grid grid-cols-2 gap-4 p-4 bg-slate-50 rounded-2xl border border-slate-200">
+            <div>
+              <p class="text-[10px] uppercase font-black tracking-wider text-slate-400">Customer Details</p>
+              <p class="font-black text-slate-900 text-sm mt-0.5">{{ sale.customer?.name || 'Walk-in Customer' }}</p>
+              <p class="text-slate-500 font-semibold">{{ sale.customer?.phone || 'No Contact Number' }}</p>
+            </div>
+            <div>
+              <p class="text-[10px] uppercase font-black tracking-wider text-slate-400">Payment Status</p>
+              <p class="font-black text-slate-900 text-sm mt-0.5">{{ sale.paymentMode }} Mode</p>
+              <p class="font-extrabold mt-0.5" [class.text-emerald-600]="getDueAmount(sale) <= 0" [class.text-rose-600]="getDueAmount(sale) > 0">
+                Collected: {{ (sale.amountPaid ?? sale.total) | currency:'INR':'symbol':'1.2-2' }}
+                @if (getDueAmount(sale) > 0) {
+                  (Due: {{ getDueAmount(sale) | currency:'INR':'symbol':'1.2-2' }})
+                }
+              </p>
+            </div>
+          </div>
+
+          <!-- Items Table -->
+          <div>
+            <h3 class="font-extrabold text-slate-900 text-sm mb-2.5">Purchased Items</h3>
+            <div class="border border-slate-200 rounded-2xl overflow-hidden">
+              <table class="w-full text-left">
+                <thead class="bg-slate-100 text-[10px] font-black uppercase text-slate-500 border-b border-slate-200">
+                  <tr>
+                    <th class="py-2.5 px-3.5">Product</th>
+                    <th class="py-2.5 px-3.5 text-center">Qty</th>
+                    <th class="py-2.5 px-3.5 text-right">Price</th>
+                    <th class="py-2.5 px-3.5 text-right">Total</th>
+                  </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-100 font-semibold">
+                  @for (item of sale.items; track $index) {
+                    <tr>
+                      <td class="py-3 px-3.5 text-slate-900 font-bold">{{ item.name }}</td>
+                      <td class="py-3 px-3.5 text-center text-slate-700 font-black">{{ item.cartQuantity }}</td>
+                      <td class="py-3 px-3.5 text-right text-slate-700">{{ item.sellingPrice | currency:'INR':'symbol':'1.2-2' }}</td>
+                      <td class="py-3 px-3.5 text-right font-black text-slate-900">{{ (item.sellingPrice * item.cartQuantity) | currency:'INR':'symbol':'1.2-2' }}</td>
+                    </tr>
+                  }
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- Invoice Totals Breakdown -->
+          <div class="flex justify-end pt-2">
+            <div class="w-64 space-y-2 text-right font-semibold">
+              <div class="flex justify-between text-slate-600">
+                <span>Subtotal:</span>
+                <span>{{ sale.subtotal | currency:'INR':'symbol':'1.2-2' }}</span>
+              </div>
+              @if (sale.totalDiscount) {
+                <div class="flex justify-between text-emerald-600 font-bold">
+                  <span>Discount Applied:</span>
+                  <span>-{{ sale.totalDiscount | currency:'INR':'symbol':'1.2-2' }}</span>
+                </div>
+              }
+              <div class="flex justify-between text-slate-900 text-lg font-black border-t border-slate-200 pt-2">
+                <span>Grand Total:</span>
+                <span>{{ sale.total | currency:'INR':'symbol':'1.2-2' }}</span>
+              </div>
+            </div>
+          </div>
+
+        </div>
+
+        <!-- Modal Footer Actions -->
+        <div class="p-4 border-t border-slate-200 bg-slate-50 flex items-center justify-between">
+          <button (click)="downloadSalePdf(sale)" class="flex items-center gap-2 px-5 py-2.5 bg-emerald-600 text-white font-extrabold rounded-2xl hover:bg-emerald-500 transition-colors shadow-md shadow-emerald-600/20">
+            <span class="material-icons-outlined text-base">picture_as_pdf</span>
+            <span>Download PDF Invoice</span>
+          </button>
+
+          <button (click)="closeModal()" class="px-5 py-2.5 bg-slate-200 hover:bg-slate-300 text-slate-800 font-bold rounded-2xl transition-colors">
+            Close
+          </button>
+        </div>
+
+      </div>
+    </div>
+  }
+
+  <!-- RECORD PAYMENT MODAL -->
+  @if (showPaymentModal() && paymentSale(); as pSale) {
+    <div class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-xs animate-fade-in">
+      <div class="bg-white rounded-3xl shadow-2xl border border-slate-200 w-full max-w-md overflow-hidden">
+        
+        <div class="p-5 border-b border-slate-200 bg-amber-500 text-white flex items-center justify-between">
+          <div class="flex items-center gap-2">
+            <span class="material-icons-outlined text-xl">payments</span>
+            <h3 class="font-extrabold text-base">Record Udhar Payment</h3>
+          </div>
+          <button (click)="closePaymentModal()" class="text-white/80 hover:text-white">
+            <span class="material-icons-outlined text-lg">close</span>
+          </button>
+        </div>
+
+        <div class="p-6 space-y-4 text-xs font-semibold">
+          <div class="p-4 bg-slate-50 rounded-2xl border border-slate-200">
+            <p class="text-slate-500">Bill #: <span class="font-black text-slate-900">#{{ pSale.id }}</span></p>
+            <p class="text-slate-500">Customer: <span class="font-black text-slate-900">{{ pSale.customer?.name || 'Walk-in' }}</span></p>
+            <p class="text-rose-600 font-black text-base mt-2">Remaining Due: {{ getDueAmount(pSale) | currency:'INR':'symbol':'1.2-2' }}</p>
+          </div>
+
+          <div>
+            <label class="block font-bold text-slate-700 mb-1.5">Payment Amount Received (₹)</label>
+            <input type="number" 
+                   [ngModel]="paymentAmountInput()" 
+                   (ngModelChange)="paymentAmountInput.set($event)"
+                   [max]="getDueAmount(pSale)"
+                   min="1"
+                   class="w-full px-4 py-2.5 bg-white border border-slate-300 rounded-2xl text-base font-black text-slate-900 focus:outline-none focus:ring-2 focus:ring-amber-500/30 focus:border-amber-500">
+          </div>
+
+          <div>
+            <label class="block font-bold text-slate-700 mb-1.5">Payment Method</label>
+            <select [ngModel]="paymentModeInput()" 
+                    (ngModelChange)="paymentModeInput.set($event)"
+                    class="w-full px-4 py-2.5 bg-white border border-slate-300 rounded-2xl text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-amber-500/30 focus:border-amber-500">
+              <option value="UPI">📱 UPI / GPay / PhonePe</option>
+              <option value="Cash">💵 Cash</option>
+              <option value="Card">💳 Debit / Credit Card</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="p-4 border-t border-slate-200 bg-slate-50 flex items-center justify-end gap-2.5">
+          <button (click)="closePaymentModal()" class="px-5 py-2.5 bg-slate-200 hover:bg-slate-300 text-slate-800 font-bold rounded-2xl">
+            Cancel
+          </button>
+          <button (click)="submitPaymentRecord()" class="px-5 py-2.5 bg-amber-600 hover:bg-amber-500 text-white font-black rounded-2xl shadow-md shadow-amber-600/20">
+            Save Payment Record
+          </button>
+        </div>
+
+      </div>
+    </div>
+  }
+
+</div>

@@ -1,0 +1,290 @@
+<div class="space-y-6 max-w-4xl mx-auto">
+  
+  <!-- Language Preferences Section -->
+  <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
+    <div class="flex items-center justify-between border-b pb-4 mb-4 flex-wrap gap-2">
+      <div>
+        <h2 class="text-xl font-black text-slate-900 flex items-center gap-2">
+          <span class="material-icons-outlined text-indigo-600">translate</span>
+          {{ ts.t('settings.languageSelect') }}
+        </h2>
+        <p class="text-xs text-slate-500 font-medium mt-0.5">
+          Select preferred interface language for AdvikaERP and click "Save Settings" to apply changes.
+        </p>
+      </div>
+      <div class="flex items-center gap-2">
+        <span class="px-2.5 py-1 rounded-full bg-indigo-50 text-indigo-700 text-xs font-black uppercase tracking-wider border border-indigo-200">
+          Active: {{ ts.currentLang() === 'en' ? 'English' : 'Hindi (हिंदी)' }}
+        </span>
+        @if (selectedLanguage() !== ts.currentLang()) {
+          <span class="px-2.5 py-1 rounded-full bg-amber-100 text-amber-800 text-xs font-black uppercase tracking-wider border border-amber-300 animate-pulse">
+            Pending Save
+          </span>
+        }
+      </div>
+    </div>
+
+    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
+      <button type="button"
+              (click)="selectLanguageOption('en')"
+              [class.border-indigo-600]="selectedLanguage() === 'en'"
+              [class.bg-indigo-50/60]="selectedLanguage() === 'en'"
+              class="flex items-center justify-between p-4 rounded-xl border-2 border-slate-200 hover:border-indigo-400 transition-all text-left group">
+        <div class="flex items-center gap-3">
+          <div class="w-10 h-10 rounded-xl bg-slate-100 flex items-center justify-center text-xl shrink-0 group-hover:scale-110 transition-transform">
+            🇬🇧
+          </div>
+          <div>
+            <h3 class="font-extrabold text-sm text-slate-900">English (EN)</h3>
+            <p class="text-xs text-slate-500 font-medium">Default primary language</p>
+          </div>
+        </div>
+        @if (selectedLanguage() === 'en') {
+          <span class="material-icons-outlined text-indigo-600 font-black">check_circle</span>
+        }
+      </button>
+
+      <button type="button"
+              (click)="selectLanguageOption('hi')"
+              [class.border-indigo-600]="selectedLanguage() === 'hi'"
+              [class.bg-indigo-50/60]="selectedLanguage() === 'hi'"
+              class="flex items-center justify-between p-4 rounded-xl border-2 border-slate-200 hover:border-indigo-400 transition-all text-left group">
+        <div class="flex items-center gap-3">
+          <div class="w-10 h-10 rounded-xl bg-slate-100 flex items-center justify-center text-xl shrink-0 group-hover:scale-110 transition-transform">
+            🇮🇳
+          </div>
+          <div>
+            <h3 class="font-extrabold text-sm text-slate-900">Hindi (हिंदी)</h3>
+            <p class="text-xs text-slate-500 font-medium">हिंदी भाषा इंटरफ़ेस</p>
+          </div>
+        </div>
+        @if (selectedLanguage() === 'hi') {
+          <span class="material-icons-outlined text-indigo-600 font-black">check_circle</span>
+        }
+      </button>
+    </div>
+
+    <div class="flex items-center justify-between pt-4 border-t border-slate-100 mt-4">
+      <p class="text-xs text-slate-500 font-medium">
+        @if (selectedLanguage() !== ts.currentLang()) {
+          <span class="text-amber-600 font-bold">New language selected. Click Save to apply system-wide.</span>
+        } @else {
+          Language preference is synchronized.
+        }
+      </p>
+      <button type="button" (click)="saveSettings()" class="px-5 py-2 text-xs font-bold bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl transition-colors shadow-xs flex items-center gap-1.5">
+        <span class="material-icons-outlined text-sm">save</span>
+        <span>Save Language & Settings</span>
+      </button>
+    </div>
+  </div>
+
+  <section class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200" aria-labelledby="header-tabs-title">
+    <div class="border-b border-slate-100 pb-4 mb-4">
+      <h2 id="header-tabs-title" class="text-xl font-black text-slate-900 flex items-center gap-2">
+        <span class="material-icons-outlined text-indigo-600">view_week</span>
+        Header Navigation Tabs
+      </h2>
+      <p class="text-xs text-slate-500 font-medium mt-1">
+        Choose which tabs are shown in the top header. Changes are saved automatically.
+      </p>
+    </div>
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+      @for (tab of headerTabs; track tab.id) {
+        <label class="flex items-center gap-3 p-3 rounded-xl border border-slate-200 hover:border-indigo-300 hover:bg-indigo-50/40 transition-colors cursor-pointer">
+          <input type="checkbox"
+                 [checked]="settingsService.headerTabVisibility()[tab.id]"
+                 (change)="setHeaderTabVisibility(tab.id, $event)"
+                 class="w-4 h-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500">
+          <span class="text-sm font-semibold text-slate-800">{{ ts.t(tab.translationKey) }}</span>
+        </label>
+      }
+    </div>
+  </section>
+
+  <!-- Supabase Cloud Backend Integration Section -->
+  <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
+    <div class="flex items-center justify-between border-b pb-4 mb-6">
+      <div>
+        <h2 class="text-xl font-black text-slate-900 flex items-center gap-2">
+          <span class="material-icons-outlined text-emerald-600">cloud_queue</span>
+          Supabase Database Connection
+        </h2>
+        <p class="text-xs text-slate-500 font-medium mt-0.5">
+          Connect your project to Supabase PostgreSQL database for real-time synchronization across all devices.
+        </p>
+      </div>
+
+      <!-- Connection Status Badge -->
+      @if (supabaseService.isConfigured()) {
+        <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-100 text-emerald-800 text-xs font-bold border border-emerald-300">
+          <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+          Connected
+        </span>
+      } @else {
+        <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-100 text-amber-800 text-xs font-bold border border-amber-300">
+          <span class="w-2 h-2 rounded-full bg-amber-500"></span>
+          Pending Config
+        </span>
+      }
+    </div>
+
+    @if (supabaseSaveMsg()) {
+      <div class="mb-4 p-3 bg-emerald-50 text-emerald-800 border border-emerald-200 rounded-xl text-xs font-bold flex items-center gap-2">
+        <span class="material-icons-outlined text-base">check_circle</span>
+        {{ supabaseSaveMsg() }}
+      </div>
+    }
+
+    <form [formGroup]="supabaseForm" (ngSubmit)="saveSupabaseConfig()" class="space-y-4">
+      <div>
+        <label for="supaUrl" class="block text-xs font-bold uppercase text-slate-700 tracking-wider mb-1">
+          Supabase Project URL
+        </label>
+        <input id="supaUrl" 
+               type="text" 
+               formControlName="url" 
+               placeholder="https://xyzcompany.supabase.co" 
+               class="w-full p-3.5 text-sm bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500 font-mono">
+      </div>
+
+      <div>
+        <label for="supaKey" class="block text-xs font-bold uppercase text-slate-700 tracking-wider mb-1">
+          Supabase Publishable / Anon Key
+        </label>
+        <input id="supaKey" 
+               type="password" 
+               formControlName="anonKey" 
+               placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..." 
+               class="w-full p-3.5 text-sm bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500 font-mono">
+      </div>
+
+      <div class="flex items-center justify-between pt-2">
+        <p class="text-[11px] text-slate-500">
+          Credentials are stored safely in environment settings (`.env.example`) or browser storage.
+        </p>
+        <div class="flex items-center gap-2">
+          @if (supabaseService.isConfigured()) {
+            <button type="button" (click)="clearSupabaseConfig()" class="px-3 py-2 text-xs font-bold text-rose-600 bg-rose-50 hover:bg-rose-100 rounded-xl transition-colors">
+              Disconnect
+            </button>
+          }
+          <button type="submit" [disabled]="supabaseForm.invalid" class="px-5 py-2 text-xs font-bold bg-emerald-600 text-white rounded-xl hover:bg-emerald-500 disabled:opacity-50 transition-colors shadow-xs">
+            Save Supabase Credentials
+          </button>
+        </div>
+      </div>
+    </form>
+
+    <!-- SQL Table Schema Helper -->
+    <div class="mt-6 pt-6 border-t border-slate-200">
+      <div class="flex items-center justify-between">
+        <div>
+          <h3 class="text-xs font-black text-slate-900 uppercase tracking-wider flex items-center gap-1.5">
+            <span class="material-icons-outlined text-sm text-slate-600">table_chart</span>
+            Database Table Schemas (7 Tables)
+          </h3>
+          <p class="text-[11px] text-slate-500 mt-0.5">
+            Standard Supabase keys do not auto-create tables over REST. Click below to copy and run all 7 table queries in your Supabase SQL Editor.
+          </p>
+        </div>
+        <div class="flex items-center gap-2">
+          <button type="button" (click)="showSqlSchema.set(!showSqlSchema())" class="px-3 py-1.5 text-xs font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-xl transition-colors flex items-center gap-1">
+            <span class="material-icons-outlined text-sm">{{ showSqlSchema() ? 'unfold_less' : 'code' }}</span>
+            {{ showSqlSchema() ? 'Hide SQL' : 'View SQL DDL' }}
+          </button>
+          <button type="button" (click)="copySql()" class="px-3 py-1.5 text-xs font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-xl transition-colors flex items-center gap-1">
+            <span class="material-icons-outlined text-sm">{{ sqlCopied() ? 'check' : 'content_copy' }}</span>
+            {{ sqlCopied() ? 'Copied All 7 Tables!' : 'Copy SQL Schema' }}
+          </button>
+        </div>
+      </div>
+
+      @if (showSqlSchema()) {
+        <div class="mt-3 relative">
+          <pre class="p-4 bg-slate-900 text-emerald-400 text-[11px] font-mono rounded-xl overflow-x-auto max-h-64 border border-slate-800 leading-relaxed">{{ sqlScript }}</pre>
+        </div>
+      }
+    </div>
+  </div>
+
+  <!-- Business Profile Section -->
+  <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
+    <h2 class="text-xl font-bold text-slate-900 border-b pb-4 mb-6">Business Profile</h2>
+    <p class="text-xs text-slate-500 mb-6 font-medium">
+      This information will appear on your invoices and throughout the application.
+    </p>
+    <form [formGroup]="settingsForm" (ngSubmit)="saveSettings()" class="space-y-4">
+      <div>
+        <label for="shopName" class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">Shop Name</label>
+        <input id="shopName" type="text" formControlName="shopName" class="w-full p-3.5 text-sm border border-slate-200 rounded-xl focus:outline-none focus:border-blue-500">
+      </div>
+      <div>
+        <label for="shopAddress" class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">Shop Address</label>
+        <textarea id="shopAddress" formControlName="shopAddress" rows="3" class="w-full p-3.5 text-sm border border-slate-200 rounded-xl focus:outline-none focus:border-blue-500"></textarea>
+      </div>
+      <div>
+        <label for="shopPhone" class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">Shop Phone</label>
+        <input id="shopPhone" type="text" formControlName="shopPhone" class="w-full p-3.5 text-sm border border-slate-200 rounded-xl focus:outline-none focus:border-blue-500">
+      </div>
+      <div class="flex justify-end pt-4">
+        <button type="submit" [disabled]="settingsForm.invalid" class="px-5 py-2 text-xs font-bold bg-blue-600 text-white rounded-xl hover:bg-blue-500 disabled:opacity-50 transition-colors shadow-xs">
+          Save Settings
+        </button>
+      </div>
+    </form>
+  </div>
+
+  <!-- Data Management Section -->
+  <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
+    <h2 class="text-xl font-bold text-slate-900 border-b pb-4 mb-6">Data Management</h2>
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <!-- Export Card -->
+        <div class="bg-slate-50 p-4 rounded-xl border border-slate-200">
+            <h3 class="font-bold text-slate-800 text-sm">Export Data</h3>
+            <p class="text-xs text-slate-500 my-2">Download a single backup file containing all your products, customers, sales, and settings.</p>
+            <button (click)="exportAppData()" class="px-4 py-2 text-xs font-bold bg-blue-600 text-white rounded-xl hover:bg-blue-500 transition-colors">
+                Export All Data
+            </button>
+        </div>
+        <!-- Import Card -->
+        <div class="bg-rose-50 p-4 rounded-xl border border-rose-200">
+            <h3 class="font-bold text-rose-900 text-sm">Import Data</h3>
+            <p class="text-xs text-rose-600 my-2">
+                <span class="font-bold">Warning:</span> This will overwrite all current data. This action cannot be undone.
+            </p>
+            <input #fileInput type="file" (change)="onFileSelected($event)" accept=".json" class="hidden">
+            <button (click)="fileInput.click()" class="px-4 py-2 text-xs font-bold bg-rose-600 text-white rounded-xl hover:bg-rose-500 transition-colors">
+                Import from Backup
+            </button>
+        </div>
+        <!-- Reset Database Card -->
+        <div class="bg-red-50 p-4 rounded-xl border border-red-200">
+            <h3 class="font-bold text-red-900 text-sm">Reset Database</h3>
+            <p class="text-xs text-red-600 my-2">
+                <span class="font-bold">Critical:</span> Clear all Supabase and local records (Products, Invoices, etc.). Settings are preserved.
+            </p>
+            <button (click)="resetAllData()" class="px-4 py-2 text-xs font-bold bg-red-700 text-white rounded-xl hover:bg-red-600 transition-colors flex items-center gap-1.5">
+                <span class="material-icons-outlined text-sm">delete_forever</span>
+                Reset All Records
+            </button>
+        </div>
+    </div>
+  </div>
+</div>
+
+
+<!-- Import Confirmation Modal -->
+@if (showImportConfirmation()) {
+    <div class="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-[60] p-4">
+        <div class="bg-white rounded-lg shadow-2xl w-full max-w-md p-6">
+            <h3 class="text-lg font-bold text-red-800">Confirm Data Import</h3>
+            <p class="text-slate-600 mt-2 mb-1">You are about to import the file: <span class="font-semibold text-slate-800">{{ importFile()?.name }}</span>.</p>
+            <p class="text-red-600 font-semibold mb-6">This will permanently delete all existing data. Are you absolutely sure you want to proceed?</p>
+            <div class="flex justify-end gap-4">
+                <button (click)="showImportConfirmation.set(false)" class="px-6 py-2 bg-slate-200 rounded-lg hover:bg-slate-300">Cancel</button>
+                <button (click)="confirmImport()" class="px-6 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700">Yes, Overwrite Data</button>
+            </div>
+        </div>
+    </div>
+}
