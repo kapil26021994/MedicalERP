@@ -7,6 +7,7 @@ import { ProductService } from '../../services/product.service';
 import { TranslationService } from '../../services/translation.service';
 import { SupabaseService } from '../../services/supabase.service';
 import { ConfirmationService } from '../../services/confirmation.service';
+import { ToastService } from '../../services/toast.service';
 import { LoaderComponent } from '../layout/loader.component';
 import { Product } from '../../models/product.model';
 import { convertImageToTableJS } from '../../utils/imageToTableConverter';
@@ -41,6 +42,7 @@ export class PurchasesComponent implements OnInit {
   public ts = inject(TranslationService);
   supabaseService = inject(SupabaseService);
   private confirmationService = inject(ConfirmationService);
+  private toastService = inject(ToastService);
   private cdr = inject(ChangeDetectorRef);
 
   showModal = signal(false);
@@ -659,6 +661,7 @@ export class PurchasesComponent implements OnInit {
 
     if (confirmed) {
       await this.purchaseService.deletePurchase(purchase.id);
+      this.toastService.success('Purchase deleted.');
     }
   }
 
@@ -672,6 +675,7 @@ export class PurchasesComponent implements OnInit {
 
     if (confirmed) {
       await this.purchaseService.deleteAllPurchases();
+      this.toastService.success('All purchases deleted.');
     }
   }
 
@@ -720,10 +724,11 @@ export class PurchasesComponent implements OnInit {
         await this.purchaseService.deletePurchase(id);
       }
       this.selectedIds.set(new Set());
+      this.toastService.success(`${ids.length} purchase${ids.length === 1 ? '' : 's'} deleted.`);
     }
   }
 
-  savePurchase() {
+  async savePurchase(): Promise<void> {
     if (this.purchaseForm.invalid) {
       this.purchaseForm.markAllAsTouched();
       return;
@@ -764,13 +769,19 @@ export class PurchasesComponent implements OnInit {
       notes: formValue.notes,
     };
 
-    if (this.editingPurchase()) {
-      const updatedPurchase = { ...this.editingPurchase()!, ...purchaseData };
-      this.purchaseService.updatePurchase(updatedPurchase, this.editingPurchase()!);
-    } else {
-      this.purchaseService.addPurchase(purchaseData);
+    try {
+      if (this.editingPurchase()) {
+        const updatedPurchase = { ...this.editingPurchase()!, ...purchaseData };
+        await this.purchaseService.updatePurchase(updatedPurchase, this.editingPurchase()!);
+        this.toastService.success('Purchase updated.');
+      } else {
+        await this.purchaseService.addPurchase(purchaseData);
+        this.toastService.success('Purchase saved.');
+      }
+      this.closeModal();
+    } catch (error) {
+      this.toastService.error(error instanceof Error ? error.message : 'Failed to save purchase.');
     }
-    this.closeModal();
   }
   
   getItemName(index: number): string {

@@ -7,6 +7,7 @@ import { CustomerService } from '../../services/customer.service';
 import { PurchaseService } from '../../services/purchase.service';
 import { ExpenseService } from '../../services/expense.service';
 import { TranslationService } from '../../services/translation.service';
+import { ToastService } from '../../services/toast.service';
 import { Product } from '../../models/product.model';
 import { RouterLink } from '@angular/router';
 import { LoaderComponent } from '../layout/loader.component';
@@ -32,6 +33,7 @@ export class DashboardComponent implements OnInit, AfterViewInit, OnDestroy {
   private expenseService = inject(ExpenseService);
   private customerService = inject(CustomerService);
   public ts = inject(TranslationService);
+  private toastService = inject(ToastService);
 
   isLoading = computed(() => 
     this.productService.isLoading() || 
@@ -125,12 +127,17 @@ export class DashboardComponent implements OnInit, AfterViewInit, OnDestroy {
     return this.productService.products().filter(p => p.quantity <= (p.minStockAlert || 5));
   });
 
-  restockProduct(product: Product) {
+  async restockProduct(product: Product): Promise<void> {
     const qtyStr = prompt(`Enter quantity to restock for ${product.name}:`, '10');
     if (qtyStr && !isNaN(Number(qtyStr))) {
       const qty = Number(qtyStr);
       if (qty > 0) {
-        this.productService.updateStock(product.id, qty, 'Purchase', 'Dashboard quick restock');
+        try {
+          await this.productService.updateStock(product.id, qty, 'Purchase', 'Dashboard quick restock');
+          this.toastService.success(`${qty} units added to ${product.name}.`);
+        } catch (error) {
+          this.toastService.error(error instanceof Error ? error.message : 'Failed to restock product.');
+        }
       }
     }
   }

@@ -9,6 +9,7 @@ import { PurchaseService } from '../../services/purchase.service';
 import { SettingsService, INVOICE_TEMPLATES } from '../../services/settings.service';
 import { PdfExportService } from '../../services/pdf-export.service';
 import { SupabaseService } from '../../services/supabase.service';
+import { ToastService } from '../../services/toast.service';
 import { Customer } from '../../models/customer.model';
 import { Product } from '../../models/product.model';
 import { Invoice, CartItem, InvoiceTemplateId } from '../../models/invoice.model';
@@ -42,6 +43,7 @@ export class InvoiceFormComponent implements OnInit, OnDestroy {
   settingsService = inject(SettingsService);
   pdfExportService = inject(PdfExportService);
   supabaseService = inject(SupabaseService);
+  private toastService = inject(ToastService);
 
   @ViewChild('invoicePreview') invoicePreview!: ElementRef<HTMLDivElement>;
 
@@ -671,6 +673,7 @@ export class InvoiceFormComponent implements OnInit, OnDestroy {
   async saveNewCustomer() {
     if (this.newCustomerForm.invalid) return;
     const newCustomer = await this.customerService.addCustomer(this.newCustomerForm.getRawValue() as any);
+    this.toastService.success('Customer added.');
     this.customerSearchControl.setValue(newCustomer.name);
     this.selectCustomer(newCustomer);
     this.showAddCustomerModal.set(false);
@@ -766,10 +769,19 @@ export class InvoiceFormComponent implements OnInit, OnDestroy {
       template: this.selectedTemplate()
     };
 
-    if (this.isEditMode()) {
-      await this.invoiceService.updateInvoice({ ...finalInvoice, id: this.invoiceId()! });
-    } else {
-      await this.invoiceService.addInvoice({ ...finalInvoice, id: this.invoiceService.generateNewInvoiceId() });
+    try {
+      if (this.isEditMode()) {
+        await this.invoiceService.updateInvoice({ ...finalInvoice, id: this.invoiceId()! });
+        this.toastService.success('Invoice updated.');
+      } else {
+        await this.invoiceService.addInvoice({ ...finalInvoice, id: this.invoiceService.generateNewInvoiceId() });
+        this.toastService.success('Invoice created.');
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      console.error('Invoice could not be saved:', error);
+      alert(`Invoice could not be saved. ${message}`);
+      return;
     }
 
     this.router.navigate(['/invoices']);

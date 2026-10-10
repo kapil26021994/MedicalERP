@@ -31,6 +31,7 @@ export type HeaderTabId =
   | 'invoices'
   | 'inventory'
   | 'purchases'
+  | 'challan'
   | 'expenses'
   | 'customers';
 export type HeaderTabVisibility = Record<HeaderTabId, boolean>;
@@ -41,6 +42,7 @@ export const HEADER_TABS: { id: HeaderTabId; label: string; translationKey: stri
   { id: 'invoices', label: 'Invoices', translationKey: 'nav.invoices' },
   { id: 'inventory', label: 'Inventory', translationKey: 'nav.inventory' },
   { id: 'purchases', label: 'Purchases', translationKey: 'nav.purchases' },
+  { id: 'challan', label: 'Challan', translationKey: 'nav.challan' },
   { id: 'expenses', label: 'Expenses', translationKey: 'nav.expenses' },
   { id: 'customers', label: 'Customers', translationKey: 'nav.customers' }
 ];
@@ -51,6 +53,7 @@ const DEFAULT_HEADER_TAB_VISIBILITY: HeaderTabVisibility = {
   invoices: true,
   inventory: true,
   purchases: true,
+  challan: true,
   expenses: true,
   customers: true
 };
@@ -114,24 +117,33 @@ export class SettingsService {
 
   businessProfile = signal<BusinessProfile>(this.defaultProfile);
   defaultTemplate = signal<InvoiceTemplateId>('modern');
-  headerTabVisibility = signal<HeaderTabVisibility>(this.readHeaderTabVisibility());
-
-  constructor() {
-    this.fetchSettingsFromApi();
-  }
+  headerTabVisibility = signal<HeaderTabVisibility>(this.readHeaderTabVisibility(null));
+  private activeAccountId: string | null = null;
+  private settingsLoaded = false;
+  private settingsLoading = false;
+  private requestVersion = 0;
 
   setHeaderTabVisibility(tabId: HeaderTabId, visible: boolean): void {
-    const updated = { ...this.headerTabVisibility(), [tabId]: visible };
+    this.saveHeaderTabVisibility({ ...this.headerTabVisibility(), [tabId]: visible });
+  }
+
+  saveHeaderTabVisibility(visibility: HeaderTabVisibility): void {
+    const updated = { ...visibility };
     this.headerTabVisibility.set(updated);
-    if (typeof localStorage !== 'undefined') {
-      localStorage.setItem('header_tab_visibility', JSON.stringify(updated));
+    if (typeof localStorage !== 'undefined' && this.activeAccountId) {
+      localStorage.setItem(this.headerTabStorageKey(this.activeAccountId), JSON.stringify(updated));
     }
   }
 
-  private readHeaderTabVisibility(): HeaderTabVisibility {
-    if (typeof localStorage === 'undefined') return { ...DEFAULT_HEADER_TAB_VISIBILITY };
+  private headerTabStorageKey(accountId: string): string {
+    return `header_tab_visibility_${encodeURIComponent(accountId)}`;
+  }
 
-    const stored = localStorage.getItem('header_tab_visibility');
+  private readHeaderTabVisibility(accountId: string | null): HeaderTabVisibility {
+    if (typeof localStorage === 'undefined') return { ...DEFAULT_HEADER_TAB_VISIBILITY };
+    if (!accountId) return { ...DEFAULT_HEADER_TAB_VISIBILITY };
+
+    const stored = localStorage.getItem(this.headerTabStorageKey(accountId));
     if (!stored) return { ...DEFAULT_HEADER_TAB_VISIBILITY };
 
     try {
@@ -145,9 +157,25 @@ export class SettingsService {
     }
   }
 
+  clearAccountData(accountId: string | null): void {
+    this.requestVersion++;
+    this.activeAccountId = accountId;
+    this.settingsLoaded = false;
+    this.settingsLoading = false;
+    this.businessProfile.set({ ...this.defaultProfile });
+    this.defaultTemplate.set('modern');
+    this.headerTabVisibility.set(this.readHeaderTabVisibility(accountId));
+  }
+
   fetchSettingsFromApi() {
+    if (!this.supabaseService.isAuthenticated() || this.settingsLoaded || this.settingsLoading) return;
+    this.settingsLoading = true;
+    const requestVersion = this.requestVersion;
     this.http.get<any>(this.apiUrl).subscribe({
       next: (res) => {
+        if (requestVersion !== this.requestVersion) return;
+        this.settingsLoading = false;
+        this.settingsLoaded = true;
         if (res) {
           const profile: BusinessProfile = {
             shopName: res.businessName || res.shopName || this.businessProfile().shopName,
@@ -163,6 +191,9 @@ export class SettingsService {
         }
       },
       error: (err) => {
+        if (requestVersion !== this.requestVersion) return;
+        this.settingsLoading = false;
+        this.settingsLoaded = true;
         if (this.supabaseService.isAuthenticated()) {
           if (err.error instanceof SyntaxError || (typeof err.error === 'string' && err.error.includes('<!DOCTYPE'))) {
             console.log('Settings API notice: Server returned page HTML during navigation.');

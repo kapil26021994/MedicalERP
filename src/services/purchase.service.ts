@@ -16,6 +16,7 @@ export class PurchaseService {
   procurementItems = signal<any[]>([]);
   isLoaded = signal(false);
   isLoading = signal(false);
+  private requestVersion = 0;
   
   constructor() {
     // In-memory only
@@ -49,6 +50,8 @@ export class PurchaseService {
             productId: prodObj.id || `prod-${idx}`,
             product_name: pName,
             productName: pName,
+            hsn_code: (item as any).hsnCode || (item as any).hsn_code || '',
+            hsnCode: (item as any).hsnCode || (item as any).hsn_code || '',
             sku: pSku,
             batch_no: (item as any).batchNo || (item as any).batch_no || '',
             batchNo: (item as any).batchNo || (item as any).batch_no || '',
@@ -80,25 +83,44 @@ export class PurchaseService {
     this.isLoaded.set(true);
   }
 
+  clearAccountData(): void {
+    this.requestVersion++;
+    this.purchases.set([]);
+    this.procurementItems.set([]);
+    this.isLoaded.set(false);
+    this.isLoading.set(false);
+  }
+
   async fetchPurchasesFromApi(force: boolean = false) {
     if (!force && this.isLoaded()) return;
+    const requestVersion = this.requestVersion;
     this.isLoading.set(true);
 
     const supabase = this.supabaseService.client();
     if (this.supabaseService.isConfigured() && supabase) {
+      const currentUserId = this.supabaseService.currentUser()?.id;
       try {
+        let purchasesQuery = supabase.from('purchases').select('*');
+        let procQuery = supabase.from('procurement_items').select('*');
+        if (currentUserId) {
+          purchasesQuery = purchasesQuery.eq('user_id', currentUserId);
+          procQuery = procQuery.eq('user_id', currentUserId);
+        }
         let [purchasesRes, procRes] = await Promise.all([
-          supabase.from('purchases').select('*').order('created_at', { ascending: false }),
-          supabase.from('procurement_items').select('*').order('created_at', { ascending: false })
+          purchasesQuery.order('created_at', { ascending: false }),
+          procQuery.order('created_at', { ascending: false })
         ]);
+        if (requestVersion !== this.requestVersion) return;
 
         if (purchasesRes.error) {
-          const fallback = await supabase.from('purchases').select('*');
+          const fallback = currentUserId ? await supabase.from('purchases').select('*').eq('user_id', currentUserId) : await supabase.from('purchases').select('*');
+          if (requestVersion !== this.requestVersion) return;
           if (!fallback.error && fallback.data) purchasesRes = fallback;
         }
 
         if (procRes.error) {
-          const fallback = await supabase.from('procurement_items').select('*');
+          const fallback = currentUserId ? await supabase.from('procurement_items').select('*').eq('user_id', currentUserId) : await supabase.from('procurement_items').select('*');
+          if (requestVersion !== this.requestVersion) return;
           if (!fallback.error && fallback.data) procRes = fallback;
         }
 
@@ -141,12 +163,14 @@ export class PurchaseService {
         this.isLoading.set(false);
         return;
       } catch (e) {
+        if (requestVersion !== this.requestVersion) return;
         this.isLoading.set(false);
       }
     }
 
     this.http.get<any>(this.apiUrl).subscribe({
       next: (res) => {
+        if (requestVersion !== this.requestVersion) return;
         const data = Array.isArray(res) ? res : res?.purchases;
         if (Array.isArray(data)) {
           const mapped = data.map((p: any) => {
@@ -164,6 +188,7 @@ export class PurchaseService {
         this.isLoading.set(false);
       },
       error: () => {
+        if (requestVersion !== this.requestVersion) return;
         this.isLoading.set(false);
       }
     });
@@ -171,6 +196,7 @@ export class PurchaseService {
     // Also fetch procurement items via API with auto-fallback
     this.http.get<any>('/api/procurement-items').subscribe({
       next: (res) => {
+        if (requestVersion !== this.requestVersion) return;
         if (Array.isArray(res?.procurementItems)) {
           this.procurementItems.set(res.procurementItems);
           this.syncProcuredItemsIntoCatalog(this.procurementItems());
@@ -214,7 +240,7 @@ export class PurchaseService {
     });
   }
 
-  addPurchase(purchaseData: Omit<Purchase, 'id'>) {
+  async addPurchase(purchaseData: Omit<Purchase, 'id'>): Promise<Purchase> {
     const newPurchase: Purchase = {
       ...purchaseData,
       id: `purch-${Date.now()}`,
@@ -345,13 +371,11 @@ export class PurchaseService {
       purchaseDate: newPurchase.purchaseDate instanceof Date ? newPurchase.purchaseDate.toISOString() : newPurchase.purchaseDate
     };
 
-    this.http.post(this.apiUrl, payload).subscribe({
-      next: () => {},
-      error: (error) => console.error('Failed to save purchase through API:', error)
-    });
+    await firstValueFrom(this.http.post(this.apiUrl, payload));
+    return newPurchase;
   }
 
-  updatePurchase(updatedPurchase: Purchase, oldPurchase: Purchase) {
+  async updatePurchase(updatedPurchase: Purchase, oldPurchase: Purchase): Promise<void> {
     this.purchases.update(purchases =>
       purchases.map(p => (p.id === updatedPurchase.id ? updatedPurchase : p))
        .sort((a, b) => b.purchaseDate.getTime() - a.purchaseDate.getTime())
@@ -390,63 +414,20 @@ export class PurchaseService {
       purchaseDate: updatedPurchase.purchaseDate instanceof Date ? updatedPurchase.purchaseDate.toISOString() : updatedPurchase.purchaseDate
     };
 
-    (async () => {
-      try {
-        const client = this.supabaseService.client();
-        if (this.supabaseService.isConfigured() && client) {
-          await client.from('purchases').update({
-            supplier: updatedPurchase.supplier,
-            supplier_invoice_number: updatedPurchase.supplierInvoiceNumber || '',
-            purchase_date: payload.purchaseDate,
-            items: updatedPurchase.items,
-            final_bill_amount: updatedPurchase.finalBillAmount,
-            paid_amount: updatedPurchase.paidAmount,
-            due_amount: updatedPurchase.dueAmount,
-            bill_image_url: updatedPurchase.billImageUrl || '',
-            cgst: updatedPurchase.cgst || 0,
-            sgst: updatedPurchase.sgst || 0,
-            total_tax: updatedPurchase.totalTax || 0
-          }).eq('id', updatedPurchase.id);
-        }
-      } catch (e) {
-        console.warn('Supabase purchase update note:', e);
-      }
-    })();
-
-    this.http.put(`${this.apiUrl}/${updatedPurchase.id}`, payload).subscribe({
-      next: () => {},
-      error: (err) => console.warn('Purchase updated locally. API sync note:', err?.message || err)
-    });
+    await firstValueFrom(this.http.put(`${this.apiUrl}/${updatedPurchase.id}`, payload));
   }
 
   async deleteAllPurchases() {
     const allPurchases = this.purchases();
-    this.purchases.set([]);
-    
-    // Revert stock for all items
     for (const purchase of allPurchases) {
-      for (const item of purchase.items) {
-        if ('quantity' in item.product) {
-          this.productService.updateStock(item.product.id, -item.quantity);
-        }
-      }
+      await this.deletePurchase(purchase.id);
     }
-
-    try {
-      const client = this.supabaseService.client();
-      if (this.supabaseService.isConfigured() && client) {
-        await client.from('purchases').delete().neq('id', '0');
-      }
-    } catch (e) {}
-
-    try {
-      await firstValueFrom(this.http.delete(`${this.apiUrl}/all`));
-    } catch (e) {}
   }
 
   async deletePurchase(purchaseId: string) {
     const purchaseToDelete = this.purchases().find(p => p.id === purchaseId);
     if (purchaseToDelete) {
+      await firstValueFrom(this.http.delete(`${this.apiUrl}/${purchaseId}`));
       this.purchases.update(p => p.filter(item => item.id !== purchaseId));
       // Revert stock for all items in the deleted purchase
       purchaseToDelete.items.forEach(item => {
@@ -455,21 +436,6 @@ export class PurchaseService {
         }
       });
 
-      // Sync with Supabase & API
-      try {
-        const client = this.supabaseService.client();
-        if (this.supabaseService.isConfigured() && client) {
-          await client.from('purchases').delete().eq('id', purchaseId);
-        }
-      } catch (e) {
-        console.warn('Supabase delete purchase note:', e);
-      }
-
-      try {
-        await firstValueFrom(this.http.delete(`${this.apiUrl}/${purchaseId}`));
-      } catch (err) {
-        console.error('Failed to delete purchase via API:', err);
-      }
     }
   }
 }

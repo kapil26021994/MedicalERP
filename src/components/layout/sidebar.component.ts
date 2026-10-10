@@ -71,10 +71,11 @@ import { SettingsService } from '../../services/settings.service';
         }
 
         <!-- PURCHASES SECTION -->
-        @if (settingsService.headerTabVisibility().purchases) {
+        @if (settingsService.headerTabVisibility().purchases || settingsService.headerTabVisibility().challan) {
         <div>
           <p class="px-3 text-[10px] font-extrabold tracking-wider text-slate-400 uppercase mb-1.5">{{ ts.t('nav.procurement') }}</p>
           <div class="space-y-1">
+            @if (settingsService.headerTabVisibility().purchases) {
             <a routerLink="/purchases" 
                routerLinkActive="bg-blue-600 text-white font-bold shadow-md shadow-blue-600/30" 
                (click)="onNavigate()"
@@ -82,6 +83,17 @@ import { SettingsService } from '../../services/settings.service';
               <span class="material-icons-outlined text-lg text-slate-400 group-hover:text-blue-400 group-[.bg-blue-600]:text-white transition-colors">local_shipping</span>
               <span>{{ ts.t('nav.purchases') }}</span>
             </a>
+            }
+
+            @if (settingsService.headerTabVisibility().challan) {
+            <a routerLink="/challan" 
+               routerLinkActive="bg-blue-600 text-white font-bold shadow-md shadow-blue-600/30" 
+               (click)="onNavigate()"
+               class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-semibold text-slate-300 hover:bg-slate-800 hover:text-white transition-all group">
+              <span class="material-icons-outlined text-lg text-slate-400 group-hover:text-blue-400 group-[.bg-blue-600]:text-white transition-colors">receipt_long</span>
+              <span>{{ ts.t('nav.challan') }}</span>
+            </a>
+            }
           </div>
         </div>
         }

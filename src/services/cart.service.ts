@@ -46,6 +46,11 @@ export class CartService {
   // Total units across all items
   totalUnits = computed(() => this.items().reduce((acc, item) => acc + item.cartQuantity, 0));
 
+  clearAccountData(): void {
+    this.items.set([]);
+    this.parkedTransactions.set([]);
+  }
+
   getItemQuantity(productId: string): number {
     const found = this.items().find(item => item.id === productId);
     return found ? found.cartQuantity : 0;

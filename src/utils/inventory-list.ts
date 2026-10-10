@@ -6,7 +6,44 @@ export interface InventoryListItem {
   currentStock: number;
   soldQuantity: number;
   stockStatus: 'sold_out' | 'low_stock' | 'in_stock';
+  sourcePurchaseItemRefs: Array<{ purchaseId: string; itemIndex: number }>;
+  sourceProcurementItemIds: string[];
   [key: string]: any;
+}
+
+function getPurchaseItemRef(item: any): { purchaseId: string; itemIndex: number } | null {
+  const purchaseId = String(item.purchaseId || item.purchase_id || '').trim();
+  if (!purchaseId) return null;
+
+  const explicitIndex = item.purchaseItemIndex ?? item.purchase_item_index;
+  if (explicitIndex !== undefined && explicitIndex !== null &&
+    Number.isInteger(Number(explicitIndex)) && Number(explicitIndex) >= 0) {
+    return { purchaseId, itemIndex: Number(explicitIndex) };
+  }
+
+  const id = String(item.id || '');
+  for (const prefix of [`proc-item-${purchaseId}-`, `proc-${purchaseId}-`]) {
+    if (id.startsWith(prefix)) {
+      const itemIndex = Number(id.slice(prefix.length));
+      if (Number.isInteger(itemIndex) && itemIndex >= 0) return { purchaseId, itemIndex };
+    }
+  }
+
+  return null;
+}
+
+function addSourceReferences(target: any, source: any): void {
+  const ref = getPurchaseItemRef(source);
+  if (ref && !target.sourcePurchaseItemRefs.some((existing: any) =>
+    existing.purchaseId === ref.purchaseId && existing.itemIndex === ref.itemIndex
+  )) {
+    target.sourcePurchaseItemRefs.push(ref);
+  }
+
+  const id = String(source.id || '');
+  if (id && !id.startsWith('catalog-') && !target.sourceProcurementItemIds.includes(id)) {
+    target.sourceProcurementItemIds.push(id);
+  }
 }
 
 export function buildInventoryListItems(
@@ -24,8 +61,8 @@ export function buildInventoryListItems(
   };
 
   const validProcRows = safeProcurementRows.filter(hasProcuredProduct);
-  const seenRows = new Set<string>();
-  const items = validProcRows.filter(item => {
+  const uniqueRows = new Map<string, any>();
+  validProcRows.forEach(item => {
     const purchaseId = String(item.purchaseId || item.purchase_id || '').trim();
     const productName = String(item.productName || item.product_name || item.name || '').trim().toLowerCase();
     const rowKey = [
@@ -39,10 +76,15 @@ export function buildInventoryListItems(
       Number(item.costPrice || item.cost_price) || 0,
       Number(item.mrp) || 0
     ].join('|');
-    if (seenRows.has(rowKey)) return false;
-    seenRows.add(rowKey);
-    return true;
+
+    let row = uniqueRows.get(rowKey);
+    if (!row) {
+      row = { ...item, sourcePurchaseItemRefs: [], sourceProcurementItemIds: [] };
+      uniqueRows.set(rowKey, row);
+    }
+    addSourceReferences(row, item);
   });
+  const items = [...uniqueRows.values()];
 
   const itemsByProductAndBatch = new Map<string, any>();
   items.forEach(item => {
@@ -54,7 +96,11 @@ export function buildInventoryListItems(
     const existing = itemsByProductAndBatch.get(key);
 
     if (!existing) {
-      itemsByProductAndBatch.set(key, { ...item });
+      itemsByProductAndBatch.set(key, {
+        ...item,
+        sourcePurchaseItemRefs: [...item.sourcePurchaseItemRefs],
+        sourceProcurementItemIds: [...item.sourceProcurementItemIds]
+      });
       return;
     }
 
@@ -79,6 +125,16 @@ export function buildInventoryListItems(
     existing.totalCost = totalCost;
     existing.total_cost = totalCost;
     existing.supplier = [...suppliers].join(', ');
+    item.sourcePurchaseItemRefs.forEach((ref: { purchaseId: string; itemIndex: number }) => {
+      if (!existing.sourcePurchaseItemRefs.some((existingRef: { purchaseId: string; itemIndex: number }) =>
+        existingRef.purchaseId === ref.purchaseId && existingRef.itemIndex === ref.itemIndex
+      )) {
+        existing.sourcePurchaseItemRefs.push(ref);
+      }
+    });
+    item.sourceProcurementItemIds.forEach((id: string) => {
+      if (!existing.sourceProcurementItemIds.includes(id)) existing.sourceProcurementItemIds.push(id);
+    });
   });
 
   const representedProductIds = new Set<string>();
@@ -191,6 +247,8 @@ export function buildInventoryListItems(
         sold_quantity: 0,
         soldQuantity: 0,
         stockStatus: stockStatus,
+        sourcePurchaseItemRefs: [],
+        sourceProcurementItemIds: [],
         catalogProduct: product
       });
     }

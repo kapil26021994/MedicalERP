@@ -14,6 +14,7 @@ export class ExpenseService {
   expenses = signal<Expense[]>([]);
   isLoaded = signal(false);
   isLoading = signal(false);
+  private requestVersion = 0;
 
   constructor() {
     // In-memory only
@@ -32,19 +33,33 @@ export class ExpenseService {
     this.isLoaded.set(true);
   }
 
+  clearAccountData(): void {
+    this.requestVersion++;
+    this.expenses.set([]);
+    this.isLoaded.set(false);
+    this.isLoading.set(false);
+  }
+
   fetchExpensesFromApi(force: boolean = false) {
     return this.fetchExpenses(force);
   }
 
   async fetchExpenses(force: boolean = false) {
     if (!force && this.isLoaded()) return;
+    const requestVersion = this.requestVersion;
     this.isLoading.set(true);
 
     const supabase = this.supabaseService.client();
     if (this.supabaseService.isConfigured() && supabase) {
+      const currentUserId = this.supabaseService.currentUser()?.id;
       try {
-        const { data, error } = await supabase.from('expenses').select('*').order('created_at', { ascending: false });
+        let query = supabase.from('expenses').select('*');
+        if (currentUserId) {
+          query = query.eq('user_id', currentUserId);
+        }
+        const { data, error } = await query.order('created_at', { ascending: false });
         if (!error && data) {
+           if (requestVersion !== this.requestVersion) return;
            const mapped = data.map((e: any) => ({
              id: e.id,
              category: e.category || 'Other',
@@ -58,12 +73,14 @@ export class ExpenseService {
            return;
         }
       } catch (e) {
+        if (requestVersion !== this.requestVersion) return;
         this.isLoading.set(false);
       }
     }
 
     this.http.get<any>(this.apiUrl).subscribe({
       next: (res) => {
+        if (requestVersion !== this.requestVersion) return;
         const data = Array.isArray(res) ? res : res?.expenses;
         if (Array.isArray(data)) {
           const mapped = data.map((e: any) => ({
@@ -76,6 +93,7 @@ export class ExpenseService {
         this.isLoading.set(false);
       },
       error: () => {
+        if (requestVersion !== this.requestVersion) return;
         this.isLoading.set(false);
       }
     });
@@ -94,13 +112,15 @@ export class ExpenseService {
     // Sync to Supabase cleanly without throwing schema cache errors
     try {
       const client = this.supabaseService.client();
-      if (this.supabaseService.isConfigured() && client) {
+      const currentUserId = this.supabaseService.currentUser()?.id;
+      if (this.supabaseService.isConfigured() && client && currentUserId) {
         const { error } = await client.from('expenses').insert([{
           id: newExpense.id,
           date: newExpense.date.toISOString(),
           category: newExpense.category,
           description: newExpense.description,
-          amount: newExpense.amount
+          amount: newExpense.amount,
+          user_id: currentUserId
         }]);
 
         if (error) {
@@ -141,13 +161,15 @@ export class ExpenseService {
     // Sync to Supabase cleanly
     try {
       const client = this.supabaseService.client();
-      if (this.supabaseService.isConfigured() && client) {
+      const currentUserId = this.supabaseService.currentUser()?.id;
+      if (this.supabaseService.isConfigured() && client && currentUserId) {
         const { error } = await client.from('expenses').update({
           date: safeUpdated.date.toISOString(),
           category: safeUpdated.category,
           description: safeUpdated.description,
-          amount: safeUpdated.amount
-        }).eq('id', safeUpdated.id);
+          amount: safeUpdated.amount,
+          user_id: currentUserId
+        }).eq('id', safeUpdated.id).eq('user_id', currentUserId);
 
         if (error) {
           if (error.code === 'PGRST204' || error.message?.includes('schema cache') || error.message?.includes('not find the table')) {
@@ -174,8 +196,9 @@ export class ExpenseService {
 
     try {
       const client = this.supabaseService.client();
-      if (this.supabaseService.isConfigured() && client) {
-        const { error } = await client.from('expenses').delete().eq('id', expenseId);
+      const currentUserId = this.supabaseService.currentUser()?.id;
+      if (this.supabaseService.isConfigured() && client && currentUserId) {
+        const { error } = await client.from('expenses').delete().eq('id', expenseId).eq('user_id', currentUserId);
         if (error) {
           if (error.code === 'PGRST204' || error.message?.includes('schema cache') || error.message?.includes('not find the table')) {
             console.warn('[Supabase Notice] Table "expenses" not created in Supabase yet.');
@@ -196,8 +219,9 @@ export class ExpenseService {
 
     try {
       const client = this.supabaseService.client();
-      if (this.supabaseService.isConfigured() && client) {
-        await client.from('expenses').delete().neq('id', '0');
+      const currentUserId = this.supabaseService.currentUser()?.id;
+      if (this.supabaseService.isConfigured() && client && currentUserId) {
+        await client.from('expenses').delete().eq('user_id', currentUserId);
       }
     } catch (e) {}
 

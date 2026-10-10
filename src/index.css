@@ -172,3 +172,7 @@
 .custom-scrollbar::-webkit-scrollbar-thumb:hover {
   background: #94a3b8;
 }
+
+.w-\[1076px\] {
+    width: 100% !important;
+}

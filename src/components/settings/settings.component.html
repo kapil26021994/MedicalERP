@@ -86,14 +86,17 @@
         Header Navigation Tabs
       </h2>
       <p class="text-xs text-slate-500 font-medium mt-1">
-        Choose which tabs are shown in the top header. Changes are saved automatically.
+        Choose which tabs are shown in the top header. Changes take effect after you save settings.
       </p>
+      @if (hasUnsavedHeaderTabChanges()) {
+        <p class="mt-2 text-xs font-bold text-amber-700" role="status">Navigation changes are pending save.</p>
+      }
     </div>
     <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
       @for (tab of headerTabs; track tab.id) {
         <label class="flex items-center gap-3 p-3 rounded-xl border border-slate-200 hover:border-indigo-300 hover:bg-indigo-50/40 transition-colors cursor-pointer">
           <input type="checkbox"
-                 [checked]="settingsService.headerTabVisibility()[tab.id]"
+                 [checked]="headerTabDraft()[tab.id]"
                  (change)="setHeaderTabVisibility(tab.id, $event)"
                  class="w-4 h-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500">
           <span class="text-sm font-semibold text-slate-800">{{ ts.t(tab.translationKey) }}</span>

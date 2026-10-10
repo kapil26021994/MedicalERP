@@ -8,6 +8,7 @@ import { ProductService } from '../../services/product.service';
 import { PdfExportService } from '../../services/pdf-export.service';
 import { TranslationService } from '../../services/translation.service';
 import { ConfirmationService } from '../../services/confirmation.service';
+import { ToastService } from '../../services/toast.service';
 import { LoaderComponent } from '../layout/loader.component';
 import { Invoice, CartItem } from '../../models/invoice.model';
 import { Product } from '../../models/product.model';
@@ -26,6 +27,7 @@ export class SalesComponent implements OnInit {
   pdfExportService = inject(PdfExportService);
   public ts = inject(TranslationService);
   private confirmationService = inject(ConfirmationService);
+  private toastService = inject(ToastService);
   private route = inject(ActivatedRoute);
 
   ngOnInit() {
@@ -265,15 +267,20 @@ export class SalesComponent implements OnInit {
     return prods;
   });
 
-  adjustProductStock(product: Product, delta: number) {
-    this.productService.updateStock(
-      product.id, 
-      delta, 
-      'Adjustment', 
-      `Quick stock adjustment (${delta > 0 ? '+' : ''}${delta})`,
-      product.sku,
-      product.name
-    );
+  async adjustProductStock(product: Product, delta: number): Promise<void> {
+    try {
+      await this.productService.updateStock(
+        product.id,
+        delta,
+        'Adjustment',
+        `Quick stock adjustment (${delta > 0 ? '+' : ''}${delta})`,
+        product.sku,
+        product.name
+      );
+      this.toastService.success(`Stock updated for ${product.name}.`);
+    } catch (error) {
+      this.toastService.error(error instanceof Error ? error.message : 'Failed to update product stock.');
+    }
   }
 
   // Payment Mode Breakdown
@@ -353,6 +360,7 @@ export class SalesComponent implements OnInit {
     };
 
     await this.invoiceService.updateInvoice(updatedSale);
+    this.toastService.success('Payment recorded.');
     this.closePaymentModal();
     if (this.selectedSale()?.id === sale.id) {
       this.selectedSale.set(updatedSale);
@@ -409,6 +417,7 @@ export class SalesComponent implements OnInit {
 
     if (confirmed) {
       await this.invoiceService.deleteInvoice(sale.id);
+      this.toastService.success(`Sale ${sale.id} deleted.`);
     }
   }
 
@@ -422,6 +431,7 @@ export class SalesComponent implements OnInit {
 
     if (confirmed) {
       await this.invoiceService.deleteAllInvoices();
+      this.toastService.success('All sales records deleted.');
     }
   }
 
@@ -470,6 +480,7 @@ export class SalesComponent implements OnInit {
         await this.invoiceService.deleteInvoice(id);
       }
       this.selectedIds.set(new Set());
+      this.toastService.success(`${ids.length} sale${ids.length === 1 ? '' : 's'} deleted.`);
     }
   }
 }

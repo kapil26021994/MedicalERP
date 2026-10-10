@@ -199,6 +199,7 @@ export class ProductService {
   inventoryLogs = signal<InventoryLog[]>([]);
   isLoaded = signal(false);
   isLoading = signal(false);
+  private requestVersion = 0;
 
   constructor() {
     // In-memory initialization only, no localStorage
@@ -210,28 +211,35 @@ export class ProductService {
     this.isLoaded.set(true);
   }
 
+  clearAccountData(): void {
+    this.requestVersion++;
+    this.products.set([]);
+    this.inventoryLogs.set([]);
+    this.isLoaded.set(false);
+    this.isLoading.set(false);
+  }
+
   async fetchProductsFromApi(force: boolean = false) {
     if (!force && this.isLoaded()) return;
+    const requestVersion = this.requestVersion;
     this.isLoading.set(true);
 
     const supabase = this.supabaseService.client();
     if (this.supabaseService.isConfigured() && supabase) {
+      const currentUserId = this.supabaseService.currentUser()?.id;
       try {
-        let { data, error } = await supabase.from('products').select('*').order('created_at', { ascending: false });
+        let baseQuery = supabase.from('products').select('*');
+        if (currentUserId) {
+          baseQuery = baseQuery.eq('user_id', currentUserId);
+        }
+        let { data, error } = await baseQuery.order('created_at', { ascending: false });
         if (error) {
-          const fallback = await supabase.from('products').select('*');
+          const fallback = currentUserId ? await supabase.from('products').select('*').eq('user_id', currentUserId) : await supabase.from('products').select('*');
           data = fallback.data;
           error = fallback.error;
         }
-        if (error || !data || data.length === 0) {
-          // Check singular 'product' table name
-          const fallbackSingle = await supabase.from('product').select('*');
-          if (!fallbackSingle.error && fallbackSingle.data && fallbackSingle.data.length > 0) {
-            data = fallbackSingle.data;
-            error = null;
-          }
-        }
         if (!error && data) {
+           if (requestVersion !== this.requestVersion) return;
            const mapped = data.map(p => {
              let imgs = p.image_urls || p.imageUrls || p.images || [];
              if (typeof imgs === 'string') {
@@ -259,12 +267,14 @@ export class ProductService {
            return;
         }
       } catch (e) {
+        if (requestVersion !== this.requestVersion) return;
         this.isLoading.set(false);
       }
     }
 
     this.http.get<any>(this.apiUrl).subscribe({
       next: (res) => {
+        if (requestVersion !== this.requestVersion) return;
         const data = Array.isArray(res) ? res : res?.products;
         if (Array.isArray(data)) {
           this.products.set(data);
@@ -273,6 +283,7 @@ export class ProductService {
         this.isLoading.set(false);
       },
       error: () => {
+        if (requestVersion !== this.requestVersion) return;
         this.isLoading.set(false);
       }
     });
@@ -317,16 +328,18 @@ export class ProductService {
     });
 
     const supabase = this.supabaseService.client();
-    if (this.supabaseService.isConfigured() && supabase) {
+    const currentUserId = this.supabaseService.currentUser()?.id;
+    if (this.supabaseService.isConfigured() && supabase && currentUserId) {
       // Use upsert or query first to guarantee no duplicate reaches the DB
-      supabase.from('products').select('id').ilike('name', product.name.trim()).then(({ data: dbExisting }) => {
+      supabase.from('products').select('id').eq('user_id', currentUserId).ilike('name', product.name.trim()).then(({ data: dbExisting }) => {
         if (dbExisting && dbExisting.length > 0) {
           // Exists in Supabase: Update it instead
           supabase.from('products').update({
             quantity: newProduct.quantity,
             purchase_price: newProduct.purchasePrice,
-            selling_price: newProduct.sellingPrice
-          }).eq('id', dbExisting[0].id).then();
+            selling_price: newProduct.sellingPrice,
+            user_id: currentUserId
+          }).eq('id', dbExisting[0].id).eq('user_id', currentUserId).then();
         } else {
           // Does not exist: Insert clean record
           supabase.from('products').insert([{
@@ -334,7 +347,8 @@ export class ProductService {
             size: newProduct.size, color: newProduct.color, purchase_price: newProduct.purchasePrice,
             selling_price: newProduct.sellingPrice, discount_percent: newProduct.discountPercent,
             quantity: newProduct.quantity, min_stock_alert: newProduct.minStockAlert,
-            image_urls: newProduct.imageUrls, description: newProduct.description
+            image_urls: newProduct.imageUrls, description: newProduct.description,
+            user_id: currentUserId
           }]).then();
         }
       });
@@ -368,14 +382,16 @@ export class ProductService {
     });
 
     const supabase = this.supabaseService.client();
-    if (this.supabaseService.isConfigured() && supabase) {
+    const currentUserId = this.supabaseService.currentUser()?.id;
+    if (this.supabaseService.isConfigured() && supabase && currentUserId) {
       supabase.from('products').update({
         name: updatedProduct.name, category: updatedProduct.category, sku: updatedProduct.sku,
         size: updatedProduct.size, color: updatedProduct.color, purchase_price: updatedProduct.purchasePrice,
         selling_price: updatedProduct.sellingPrice, discount_percent: updatedProduct.discountPercent,
         quantity: updatedProduct.quantity, min_stock_alert: updatedProduct.minStockAlert,
-        image_urls: updatedProduct.imageUrls, description: updatedProduct.description
-      }).eq('id', updatedProduct.id).then();
+        image_urls: updatedProduct.imageUrls, description: updatedProduct.description,
+        user_id: currentUserId
+      }).eq('id', updatedProduct.id).eq('user_id', currentUserId).then();
     }
   }
 
@@ -388,8 +404,9 @@ export class ProductService {
     }
 
     const supabase = this.supabaseService.client();
-    if (this.supabaseService.isConfigured() && supabase) {
-      await supabase.from('products').delete().eq('id', productId);
+    const currentUserId = this.supabaseService.currentUser()?.id;
+    if (this.supabaseService.isConfigured() && supabase && currentUserId) {
+      await supabase.from('products').delete().eq('id', productId).eq('user_id', currentUserId);
     }
   }
 
@@ -429,38 +446,61 @@ export class ProductService {
       product = this.products().find(p => p.name && p.name.trim().toLowerCase() === cleanName);
     }
     if (!product) {
-      console.warn(`Product not found for stock update: ID=${productId}, SKU=${sku}, Name=${name}`);
       return;
     }
 
     const realId = product.id;
     const newQty = Math.max(0, Number(product.quantity || 0) + Number(quantityChange || 0));
     const updatedProduct: Product = { ...product, quantity: newQty };
-
-    this.products.update(products => products.map(p => 
-        p.id === realId ? updatedProduct : p
-    ));
-    
-    this.addLog(realId, product.name, quantityChange, type, reason);
-
-    // HTTP API call so backend in-memory products and database stay in sync
-    try {
-      await firstValueFrom(this.http.put(`${this.apiUrl}/${realId}`, updatedProduct));
-    } catch (err) {
-      console.warn('Stock update API note:', err);
-    }
-
     const supabase = this.supabaseService.client();
-    if (this.supabaseService.isConfigured() && supabase) {
+
+    const currentUserId = this.supabaseService.currentUser()?.id;
+    if (this.supabaseService.isConfigured() && supabase && currentUserId) {
+      let supabaseError = '';
+      let persisted = false;
       try {
-        const { error } = await supabase.from('products').update({
-          quantity: updatedProduct.quantity
-        }).eq('id', realId);
-        if (error) console.error('Supabase direct stock update error:', error);
+        const { data, error } = await supabase.from('products').update({
+          quantity: updatedProduct.quantity,
+          user_id: currentUserId
+        }).eq('id', realId).eq('user_id', currentUserId).select('id');
+        if (!error && data?.length) {
+          persisted = true;
+        } else {
+          supabaseError = error?.message || `No product with ID ${realId} was updated in "products".`;
+        }
       } catch (error) {
-        console.error('Supabase direct stock update error:', error);
+        supabaseError = error instanceof Error ? error.message : String(error);
       }
+
+      if (!persisted) {
+        try {
+          const response = await firstValueFrom(
+            this.http.put<{ persisted?: boolean }>(`${this.apiUrl}/${realId}`, updatedProduct)
+          );
+          persisted = response?.persisted === true;
+        } catch (error) {
+          const apiError = error instanceof Error ? error.message : String(error);
+          throw new Error(`Could not save stock for "${product.name}" to Supabase. ${supabaseError} ${apiError}`);
+        }
+      }
+
+      if (!persisted) {
+        throw new Error(`Could not save stock for "${product.name}" to Supabase. ${supabaseError}`);
+      }
+
+      try {
+        await firstValueFrom(this.http.put(`${this.apiUrl}/${realId}`, updatedProduct));
+      } catch (error) {
+        console.warn('Stock was saved to Supabase, but the API cache could not be updated:', error);
+      }
+    } else {
+      await firstValueFrom(this.http.put(`${this.apiUrl}/${realId}`, updatedProduct));
     }
+
+    this.products.update(products => products.map(p =>
+      p.id === realId ? updatedProduct : p
+    ));
+    this.addLog(realId, product.name, quantityChange, type, reason);
   }
 
   addOrUpdateProductsBatch(productsData: Partial<Product>[]): { added: number, updated: number, errors: number } {
@@ -488,8 +528,9 @@ export class ProductService {
           this.http.put(`${this.apiUrl}/${updatedProduct.id}`, updatedProduct).subscribe({ error: () => {} });
           
           const supabase = this.supabaseService.client();
-          if (this.supabaseService.isConfigured() && supabase) {
-            supabase.from('products').update({ quantity: updatedProduct.quantity }).eq('id', updatedProduct.id).then();
+          const currentUserId = this.supabaseService.currentUser()?.id;
+          if (this.supabaseService.isConfigured() && supabase && currentUserId) {
+            supabase.from('products').update({ quantity: updatedProduct.quantity, user_id: currentUserId }).eq('id', updatedProduct.id).eq('user_id', currentUserId).then();
           }
           
           updated++;
@@ -514,13 +555,15 @@ export class ProductService {
           this.http.post(this.apiUrl, newProduct).subscribe({ error: () => {} });
           
           const supabase = this.supabaseService.client();
-          if (this.supabaseService.isConfigured() && supabase) {
+          const currentUserId = this.supabaseService.currentUser()?.id;
+          if (this.supabaseService.isConfigured() && supabase && currentUserId) {
             supabase.from('products').insert([{
               id: newProduct.id, name: newProduct.name, category: newProduct.category, sku: newProduct.sku,
               size: newProduct.size, color: newProduct.color, purchase_price: newProduct.purchasePrice,
               selling_price: newProduct.sellingPrice, discount_percent: newProduct.discountPercent,
               quantity: newProduct.quantity, min_stock_alert: newProduct.minStockAlert,
-              image_urls: newProduct.imageUrls, description: newProduct.description
+              image_urls: newProduct.imageUrls, description: newProduct.description,
+              user_id: currentUserId
             }]).then();
           }
           

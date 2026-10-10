@@ -63,6 +63,16 @@ export class SupabaseService {
   isConfigured = computed(() => !!this.client());
   isAuthenticated = computed(() => !!this.currentUser() || this.isDemoUser());
 
+  async getAccessToken(): Promise<string | null> {
+    const supabase = this.client();
+    if (!supabase) return null;
+
+    const { data, error } = await supabase.auth.getSession();
+    if (error) throw error;
+
+    return data.session?.access_token ?? null;
+  }
+
   constructor() {
     // Re-bind auth listener whenever client changes
     effect(() => {

@@ -3,6 +3,7 @@ import { CommonModule } from '@angular/common';
 import { ReactiveFormsModule, FormsModule, FormBuilder, Validators } from '@angular/forms';
 import { Router } from '@angular/router';
 import { SupabaseService } from '../../services/supabase.service';
+import { ToastService } from '../../services/toast.service';
 import { CustomerService } from '../../services/customer.service';
 
 @Component({
@@ -198,6 +199,7 @@ import { CustomerService } from '../../services/customer.service';
 export class AuthComponent {
   private fb: FormBuilder = inject(FormBuilder);
   supabaseService = inject(SupabaseService);
+  private toastService = inject(ToastService);
   customerService = inject(CustomerService);
   private router = inject(Router);
 
@@ -259,6 +261,7 @@ export class AuthComponent {
         this.errorMessage.set(`Account created, but the customer profile could not be saved: ${err.message || 'Please try again.'}`);
         return;
       }
+      this.toastService.success('Account and customer profile created.');
       this.loading.set(false);
       this.router.navigate(['/customers']);
     } else {
@@ -295,6 +298,7 @@ export class AuthComponent {
     const res = this.supabaseService.saveCredentials(this.configUrl, this.configKey);
     if (res.success) {
       this.successMessage.set('Supabase credentials saved successfully!');
+      this.toastService.success('Supabase credentials saved.');
       this.showConfig.set(false);
       setTimeout(() => this.successMessage.set(null), 3000);
     } else {

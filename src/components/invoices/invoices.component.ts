@@ -5,6 +5,7 @@ import { SettingsService, INVOICE_TEMPLATES } from '../../services/settings.serv
 import { PdfExportService } from '../../services/pdf-export.service';
 import { TranslationService } from '../../services/translation.service';
 import { ConfirmationService } from '../../services/confirmation.service';
+import { ToastService } from '../../services/toast.service';
 import { LoaderComponent } from '../layout/loader.component';
 import { Invoice, InvoiceTemplateId } from '../../models/invoice.model';
 import { RouterLink } from '@angular/router';
@@ -30,6 +31,7 @@ export class InvoicesComponent implements OnInit {
   pdfExportService = inject(PdfExportService);
   public ts = inject(TranslationService);
   private confirmationService = inject(ConfirmationService);
+  private toastService = inject(ToastService);
 
   ngOnInit() {
     this.refreshInvoices();
@@ -49,6 +51,7 @@ export class InvoicesComponent implements OnInit {
 
     if (confirmed) {
       await this.invoiceService.deleteInvoice(id);
+      this.toastService.success(`Invoice ${id} deleted.`);
     }
   }
 
@@ -62,6 +65,7 @@ export class InvoicesComponent implements OnInit {
 
     if (confirmed) {
       await this.invoiceService.deleteAllInvoices();
+      this.toastService.success('All invoices deleted.');
     }
   }
 
@@ -110,6 +114,7 @@ export class InvoicesComponent implements OnInit {
         await this.invoiceService.deleteInvoice(id);
       }
       this.selectedIds.set(new Set());
+      this.toastService.success(`${ids.length} invoice${ids.length === 1 ? '' : 's'} deleted.`);
     }
   }
 

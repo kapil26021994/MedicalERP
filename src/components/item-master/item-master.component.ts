@@ -6,6 +6,7 @@ import { PurchaseService } from '../../services/purchase.service';
 import { ProductService } from '../../services/product.service';
 import { ConfirmationService } from '../../services/confirmation.service';
 import { SupabaseService } from '../../services/supabase.service';
+import { ToastService } from '../../services/toast.service';
 import { LoaderComponent } from '../layout/loader.component';
 import { buildInventoryListItems } from '../../utils/inventory-list';
 
@@ -33,6 +34,7 @@ export class ItemMasterComponent implements OnInit {
   productService = inject(ProductService);
   confirmationService = inject(ConfirmationService);
   supabaseService = inject(SupabaseService);
+  private toastService = inject(ToastService);
   private http = inject(HttpClient);
 
   searchTerm = signal('');
@@ -201,63 +203,81 @@ export class ItemMasterComponent implements OnInit {
 
     const productIds = new Set<string>();
     const itemIds = new Set<string>();
-    const skus = new Set<string>();
+    const purchaseItemRefs = new Map<string, Set<number>>();
     const keysToRemove = new Set<string>();
 
     itemsToDelete.forEach(item => {
-      const pId = item.productId || item.product_id || item.catalogProduct?.id;
-      if (pId && !String(pId).startsWith('inventory-custom')) productIds.add(String(pId));
-      if (item.id && !String(item.id).startsWith('catalog-')) itemIds.add(String(item.id));
-      if (item.sku && item.sku !== 'N/A') skus.add(String(item.sku).trim().toUpperCase());
+      const catalogProductId = item.catalogProduct?.id;
+      if (catalogProductId && this.productService.products().some(product => product.id === catalogProductId)) {
+        productIds.add(String(catalogProductId));
+      }
+      (item.sourceProcurementItemIds || []).forEach((id: string) => itemIds.add(id));
+      (item.sourcePurchaseItemRefs || []).forEach((ref: { purchaseId: string; itemIndex: number }) => {
+        const indexes = purchaseItemRefs.get(ref.purchaseId) || new Set<number>();
+        indexes.add(ref.itemIndex);
+        purchaseItemRefs.set(ref.purchaseId, indexes);
+      });
       if (item.inventoryKey) keysToRemove.add(item.inventoryKey);
     });
 
     try {
-      // 1. Call backend API batch-delete
-      await firstValueFrom(this.http.post('/api/inventory/batch-delete', {
+      // Keep purchases and procurement records in sync so fallback rows cannot reappear.
+      const response = await firstValueFrom(this.http.post<{ databaseSynced: boolean }>('/api/inventory/batch-delete', {
         productIds: Array.from(productIds),
         itemIds: Array.from(itemIds),
-        skus: Array.from(skus)
-      })).catch(err => console.warn('API batch-delete note:', err));
+        purchaseItemRefs: Array.from(purchaseItemRefs, ([purchaseId, indexes]) => ({
+          purchaseId,
+          itemIndexes: Array.from(indexes)
+        }))
+      }));
 
-      // 2. Direct Supabase deletion
       const client = this.supabaseService.client();
-      if (this.supabaseService.isConfigured() && client) {
-        for (const pId of productIds) {
-          await client.from('products').delete().eq('id', pId).match(() => {});
-          await client.from('product').delete().eq('id', pId).match(() => {});
-          await client.from('procurement_items').delete().eq('product_id', pId).match(() => {});
+      if (!response.databaseSynced && this.supabaseService.isConfigured() && client) {
+        for (const [purchaseId, indexes] of purchaseItemRefs) {
+          const { data, error } = await client.from('purchases').select('items').eq('id', purchaseId).maybeSingle();
+          if (error) throw error;
+          if (!data) continue;
+          const items = Array.isArray(data.items) ? data.items : [];
+          const { error: updateError } = await client.from('purchases')
+            .update({ items: items.filter((_: unknown, index: number) => !indexes.has(index)) })
+            .eq('id', purchaseId);
+          if (updateError) throw updateError;
         }
-        for (const iId of itemIds) {
-          await client.from('procurement_items').delete().eq('id', iId).match(() => {});
+        if (itemIds.size > 0) {
+          const { error } = await client.from('procurement_items').delete().in('id', Array.from(itemIds));
+          if (error) throw error;
         }
-        for (const sku of skus) {
-          if (sku && sku !== 'N/A') {
-            await client.from('products').delete().eq('sku', sku).match(() => {});
-            await client.from('product').delete().eq('sku', sku).match(() => {});
-            await client.from('procurement_items').delete().eq('sku', sku).match(() => {});
-          }
+        if (productIds.size > 0) {
+          const { error } = await client.from('products').delete().in('id', Array.from(productIds));
+          if (error) throw error;
         }
       }
 
-      // 3. Update local state
+      // Update local state only after the database operation succeeds.
       this.productService.products.update(prods =>
-        prods.filter(p => !productIds.has(p.id) && (!p.sku || !skus.has(p.sku.trim().toUpperCase())))
+        prods.filter(p => !productIds.has(p.id))
       );
       this.purchaseService.procurementItems.update(items =>
-        items.filter(i =>
-          !itemIds.has(i.id) &&
-          !productIds.has(i.product_id || i.productId) &&
-          (!i.sku || !skus.has(String(i.sku).trim().toUpperCase()))
-        )
+        items.filter(i => !itemIds.has(i.id))
       );
+      this.purchaseService.purchases.update(purchases => purchases.map(purchase => {
+        const deletedIndexes = purchaseItemRefs.get(purchase.id);
+        if (!deletedIndexes) return purchase;
+        return {
+          ...purchase,
+          items: purchase.items.filter((_, index) => !deletedIndexes.has(index))
+        };
+      }));
 
-      // 4. Remove deleted keys from selection
       this.selectedInventoryKeys.update(keys => {
         const next = new Set(keys);
         keysToRemove.forEach(k => next.delete(k));
         return next;
       });
+      this.toastService.success(`${itemsToDelete.length} inventory item${itemsToDelete.length === 1 ? '' : 's'} deleted.`);
+    } catch (error) {
+      console.error('Failed to delete inventory items:', error);
+      this.toastService.error('Failed to delete the selected inventory items. Please try again.');
     } finally {
       this.isDeleting.set(false);
     }

@@ -5,6 +5,7 @@ import { Expense } from '../../models/expense.model';
 import { ExpenseService } from '../../services/expense.service';
 import { TranslationService } from '../../services/translation.service';
 import { ConfirmationService } from '../../services/confirmation.service';
+import { ToastService } from '../../services/toast.service';
 import { LoaderComponent } from '../layout/loader.component';
 
 @Component({
@@ -24,6 +25,7 @@ export class ExpensesComponent implements OnInit {
   expenseService = inject(ExpenseService);
   public ts = inject(TranslationService);
   private confirmationService = inject(ConfirmationService);
+  private toastService = inject(ToastService);
 
   ngOnInit() {
     this.expenseService.fetchExpensesFromApi();
@@ -213,6 +215,7 @@ CREATE POLICY "Allow all on expenses" ON public.expenses FOR ALL USING (true) WI
 
     if (confirmed) {
       await this.expenseService.deleteExpense(expense.id);
+      this.toastService.success('Expense deleted.');
     }
   }
 
@@ -261,6 +264,7 @@ CREATE POLICY "Allow all on expenses" ON public.expenses FOR ALL USING (true) WI
         await this.expenseService.deleteExpense(id);
       }
       this.selectedIds.set(new Set());
+      this.toastService.success(`${ids.length} expense${ids.length === 1 ? '' : 's'} deleted.`);
     }
   }
 
@@ -274,6 +278,7 @@ CREATE POLICY "Allow all on expenses" ON public.expenses FOR ALL USING (true) WI
 
     if (confirmed) {
       await this.expenseService.deleteAllExpenses();
+      this.toastService.success('All expenses deleted.');
     }
   }
 
@@ -300,8 +305,10 @@ CREATE POLICY "Allow all on expenses" ON public.expenses FOR ALL USING (true) WI
       if (this.editingExpense()) {
         const updatedExpense = { ...this.editingExpense()!, ...expenseData };
         await this.expenseService.updateExpense(updatedExpense);
+        this.toastService.success('Expense updated.');
       } else {
         await this.expenseService.addExpense(expenseData);
+        this.toastService.success('Expense added.');
       }
       this.closeModal();
     } catch (err: any) {

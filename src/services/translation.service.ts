@@ -23,6 +23,7 @@ export class TranslationService {
     'nav.invoices': { en: 'Invoices', hi: 'इनवॉइस एवं बिल' },
     'nav.inventory': { en: 'Inventory', hi: 'इन्वेंटरी स्टॉक' },
     'nav.purchases': { en: 'Purchases', hi: 'खरीदारी (परचेज)' },
+    'nav.challan': { en: 'Challan', hi: 'चालान' },
     'nav.expenses': { en: 'Expenses', hi: 'खर्चे (एक्सपेंस)' },
     'nav.customers': { en: 'Customers', hi: 'ग्राहक सूची' },
     'nav.reports': { en: 'Reports', hi: 'रिपोर्ट्स' },

@@ -44,6 +44,12 @@ export const APP_ROUTES: Routes = [
     title: 'Purchases'
   },
   { 
+    path: 'challan', 
+    loadComponent: () => import('./components/challans/challans.component').then(c => c.ChallansComponent),
+    canActivate: [authGuard, featureVisibilityGuard],
+    title: 'Challan'
+  },
+  { 
     path: 'expenses', 
     loadComponent: () => import('./components/expenses/expenses.component').then(c => c.ExpensesComponent),
     canActivate: [authGuard, featureVisibilityGuard],

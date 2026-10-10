@@ -13,7 +13,10 @@ import { ExpenseService } from './services/expense.service';
 import { CustomerService } from './services/customer.service';
 import { ConfirmationService } from './services/confirmation.service';
 import { SettingsService } from './services/settings.service';
+import { ChallanService } from './services/challan.service';
+import { CartService } from './services/cart.service';
 import { LoaderComponent } from './components/layout/loader.component';
+import { ToastContainerComponent } from './components/layout/toast-container.component';
 
 @Component({
   selector: 'app-root',
@@ -24,7 +27,8 @@ import { LoaderComponent } from './components/layout/loader.component';
     RouterOutlet,
     RouterLink,
     RouterLinkActive,
-    LoaderComponent
+    LoaderComponent,
+    ToastContainerComponent
   ],
   styles: [`
     .active-nav-tab {
@@ -45,10 +49,14 @@ export class AppComponent {
   private expenseService = inject(ExpenseService);
   private customerService = inject(CustomerService);
   private settingsService = inject(SettingsService);
+  private challanService = inject(ChallanService);
+  private cartService = inject(CartService);
   supabaseService = inject(SupabaseService);
   ts = inject(TranslationService);
   confirmationService = inject(ConfirmationService);
   dashboardFetched = signal(false);
+  private lastAccountId: string | null | undefined;
+  private dashboardRequestId = 0;
 
   isRouteLoading = signal(false);
 
@@ -86,29 +94,40 @@ export class AppComponent {
     });
 
     effect(() => {
+      const userId = this.supabaseService.currentUser()?.id ?? null;
+      const accountId = userId ?? (this.supabaseService.isDemoUser() ? 'demo' : null);
       const authenticated = this.supabaseService.isAuthenticated();
       const loading = this.supabaseService.authLoading();
       const publicRoute = this.isAuthOrLanding();
+
+      if (accountId !== this.lastAccountId) {
+        this.lastAccountId = accountId;
+        this.dashboardRequestId++;
+        this.dashboardFetched.set(false);
+        this.productService.clearAccountData();
+        this.invoiceService.clearAccountData();
+        this.purchaseService.clearAccountData();
+        this.expenseService.clearAccountData();
+        this.customerService.clearAccountData();
+        this.challanService.clearAccountData();
+        this.cartService.clearAccountData();
+        this.settingsService.clearAccountData(accountId);
+      }
+
       if (authenticated && !loading && !publicRoute) {
         if (!this.dashboardFetched()) {
           this.dashboardFetched.set(true);
-          this.fetchDashboardData();
+          this.fetchDashboardData(accountId);
         }
+        this.settingsService.fetchSettingsFromApi();
       } else if (!authenticated || publicRoute) {
         this.dashboardFetched.set(false);
-        if (!authenticated) {
-          // Reset service loaded flags so they refetch on subsequent login
-          this.productService.isLoaded.set(false);
-          this.invoiceService.isLoaded.set(false);
-          this.purchaseService.isLoaded.set(false);
-          this.expenseService.isLoaded.set(false);
-          this.customerService.isLoaded.set(false);
-        }
       }
     });
   }
 
-  fetchDashboardData() {
+  fetchDashboardData(accountId: string | null) {
+    const requestId = ++this.dashboardRequestId;
     this.productService.isLoading.set(true);
     this.invoiceService.isLoading.set(true);
     this.purchaseService.isLoading.set(true);
@@ -117,6 +136,9 @@ export class AppComponent {
 
     this.http.get<any>('/api/dashboard').subscribe({
       next: (res) => {
+        const currentAccountId = this.supabaseService.currentUser()?.id ??
+          (this.supabaseService.isDemoUser() ? 'demo' : null);
+        if (requestId !== this.dashboardRequestId || currentAccountId !== accountId) return;
         if (res) {
           if (res.products) this.productService.setProducts(res.products);
           if (res.invoices) this.invoiceService.setInvoices(res.invoices);
@@ -131,6 +153,7 @@ export class AppComponent {
         this.customerService.isLoading.set(false);
       },
       error: () => {
+        if (requestId !== this.dashboardRequestId) return;
         this.productService.isLoading.set(false);
         this.invoiceService.isLoading.set(false);
         this.purchaseService.isLoading.set(false);
@@ -165,6 +188,7 @@ export class AppComponent {
       '/sales': visibility.sales,
       '/inventory': visibility.inventory,
       '/purchases': visibility.purchases,
+      '/challan': visibility.challan,
       '/invoices': visibility.invoices,
       '/expenses': visibility.expenses,
       '/customers': visibility.customers
@@ -174,6 +198,7 @@ export class AppComponent {
       { name: this.ts.t('nav.sales'), path: '/sales', icon: 'analytics', badge: null },
       { name: this.ts.t('nav.inventory'), path: '/inventory', icon: 'inventory_2', badge: null },
       { name: this.ts.t('nav.purchaseOrders'), path: '/purchases', icon: 'local_shipping', badge: null },
+      { name: this.ts.t('nav.challan'), path: '/challan', icon: 'receipt_long', badge: null },
       { name: this.ts.t('nav.invoices'), path: '/invoices', icon: 'receipt_long', badge: null },
       { name: this.ts.t('nav.expenses'), path: '/expenses', icon: 'payments', badge: null },
       { name: this.ts.t('nav.customers'), path: '/customers', icon: 'groups', badge: null },

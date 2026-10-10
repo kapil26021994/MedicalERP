@@ -16,6 +16,7 @@ export class InvoiceService {
   private lastInvoiceNumber = signal(1001);
   isLoaded = signal(false);
   isLoading = signal(false);
+  private requestVersion = 0;
 
   constructor() {
     // In-memory only
@@ -46,15 +47,30 @@ export class InvoiceService {
     this.lastInvoiceNumber.set(maxNum);
   }
 
+  clearAccountData(): void {
+    this.requestVersion++;
+    this.invoices.set([]);
+    this.lastInvoiceNumber.set(1001);
+    this.isLoaded.set(false);
+    this.isLoading.set(false);
+  }
+
   async fetchInvoicesFromApi(force: boolean = false) {
     if (!force && this.isLoaded()) return;
+    const requestVersion = this.requestVersion;
     this.isLoading.set(true);
 
     const supabase = this.supabaseService.client();
     if (this.supabaseService.isConfigured() && supabase) {
+      const currentUserId = this.supabaseService.currentUser()?.id;
       try {
-        const { data, error } = await supabase.from('invoices').select('*').order('created_at', { ascending: false });
+        let query = supabase.from('invoices').select('*');
+        if (currentUserId) {
+          query = query.eq('user_id', currentUserId);
+        }
+        const { data, error } = await query.order('created_at', { ascending: false });
         if (!error && data) {
+           if (requestVersion !== this.requestVersion) return;
            const mapped = data.map(i => {
              let parsedCust = i.customer;
              if (typeof parsedCust === 'string') {
@@ -82,12 +98,14 @@ export class InvoiceService {
            return;
         }
       } catch (e) {
+        if (requestVersion !== this.requestVersion) return;
         this.isLoading.set(false);
       }
     }
 
     this.http.get<any>(this.apiUrl).subscribe({
       next: (res) => {
+        if (requestVersion !== this.requestVersion) return;
         const data = Array.isArray(res) ? res : res?.invoices;
         if (Array.isArray(data)) {
           this.setInvoices(data);
@@ -96,6 +114,7 @@ export class InvoiceService {
         this.isLoading.set(false);
       },
       error: () => {
+        if (requestVersion !== this.requestVersion) return;
         this.isLoading.set(false);
       }
     });
@@ -107,15 +126,16 @@ export class InvoiceService {
   }
 
   async addInvoice(invoice: Invoice) {
-    this.invoices.update(invoices => [invoice, ...invoices]);
     await this.applyInvoiceStockChange(undefined, invoice);
+    this.invoices.update(invoices => [invoice, ...invoices]);
 
     // Always trigger HTTP POST request for DevTools Network tab logging
     this.http.post(this.apiUrl, invoice).subscribe({ error: () => {} });
 
     try {
       const client = this.supabaseService.client();
-      if (this.supabaseService.isConfigured() && client) {
+      const currentUserId = this.supabaseService.currentUser()?.id;
+      if (this.supabaseService.isConfigured() && client && currentUserId) {
         await client.from('invoices').insert([{
           id: invoice.id,
           date: invoice.date instanceof Date ? invoice.date.toISOString() : invoice.date,
@@ -126,7 +146,8 @@ export class InvoiceService {
           payment_mode: invoice.paymentMode,
           total_discount: invoice.totalDiscount || 0,
           amount_paid: invoice.amountPaid || invoice.total,
-          notes: invoice.notes || ''
+          notes: invoice.notes || '',
+          user_id: currentUserId
         }]);
       }
     } catch (e) {}
@@ -150,7 +171,8 @@ export class InvoiceService {
 
     try {
       const client = this.supabaseService.client();
-      if (this.supabaseService.isConfigured() && client) {
+      const currentUserId = this.supabaseService.currentUser()?.id;
+      if (this.supabaseService.isConfigured() && client && currentUserId) {
         await client.from('invoices').update({
           customer: updatedInvoice.customer,
           items: updatedInvoice.items,
@@ -159,8 +181,9 @@ export class InvoiceService {
           payment_mode: updatedInvoice.paymentMode,
           total_discount: updatedInvoice.totalDiscount,
           amount_paid: updatedInvoice.amountPaid,
-          notes: updatedInvoice.notes
-        }).eq('id', updatedInvoice.id);
+          notes: updatedInvoice.notes,
+          user_id: currentUserId
+        }).eq('id', updatedInvoice.id).eq('user_id', currentUserId);
       }
     } catch (e) {}
   }
@@ -177,8 +200,9 @@ export class InvoiceService {
 
     try {
       const client = this.supabaseService.client();
-      if (this.supabaseService.isConfigured() && client) {
-        await client.from('invoices').delete().eq('id', invoiceId);
+      const currentUserId = this.supabaseService.currentUser()?.id;
+      if (this.supabaseService.isConfigured() && client && currentUserId) {
+        await client.from('invoices').delete().eq('id', invoiceId).eq('user_id', currentUserId);
       }
     } catch (e) {}
   }
@@ -194,8 +218,9 @@ export class InvoiceService {
 
     try {
       const client = this.supabaseService.client();
-      if (this.supabaseService.isConfigured() && client) {
-        await client.from('invoices').delete().neq('id', '0');
+      const currentUserId = this.supabaseService.currentUser()?.id;
+      if (this.supabaseService.isConfigured() && client && currentUserId) {
+        await client.from('invoices').delete().eq('user_id', currentUserId);
       }
     } catch (e) {}
   }
@@ -204,11 +229,15 @@ export class InvoiceService {
     const quantitiesFor = (invoice?: Invoice) => {
       const quantities = new Map<string, { item: CartItem; quantity: number }>();
       for (const item of invoice?.items || []) {
-        if (item.isCustom) continue;
+        if (!item || item.isCustom) continue;
+
         const product = this.productService.findProduct(item.id)
           || this.productService.findProduct(item.sku)
           || this.productService.findProduct(item.name);
-        if (!product) continue;
+
+        if (!product) {
+          continue;
+        }
 
         const existing = quantities.get(product.id);
         quantities.set(product.id, {

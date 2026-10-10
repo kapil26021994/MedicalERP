@@ -74,6 +74,15 @@ import { SettingsService } from '../../services/settings.service';
           </a>
           }
 
+          @if (settingsService.headerTabVisibility().challan) {
+          <a routerLink="/challan"
+             routerLinkActive="bg-white text-teal-700 font-bold shadow-2xs"
+             class="px-3 py-1.5 rounded-lg text-xs font-semibold text-slate-600 hover:text-slate-900 transition-all flex items-center gap-1.5">
+            <span class="material-icons-outlined text-base text-teal-600">receipt_long</span>
+            <span>{{ ts.t('nav.challan') }}</span>
+          </a>
+          }
+
           @if (settingsService.headerTabVisibility().expenses) {
           <a routerLink="/expenses"
              routerLinkActive="bg-white text-rose-700 font-bold shadow-2xs"
@@ -196,6 +205,12 @@ import { SettingsService } from '../../services/settings.service';
               <a routerLink="/purchases" (click)="closeQuickMenu()" class="flex items-center gap-2.5 px-4 py-2 hover:bg-blue-50 text-slate-700 hover:text-blue-700 transition-colors">
                 <span class="material-icons-outlined text-base text-amber-600">local_shipping</span>
                 <span>{{ ts.t('quick.recordPurchase') }}</span>
+              </a>
+              }
+              @if (settingsService.headerTabVisibility().challan) {
+              <a routerLink="/challan" (click)="closeQuickMenu()" class="flex items-center gap-2.5 px-4 py-2 hover:bg-blue-50 text-slate-700 hover:text-blue-700 transition-colors">
+                <span class="material-icons-outlined text-base text-teal-600">receipt_long</span>
+                <span>{{ ts.t('nav.challan') }}</span>
               </a>
               }
               @if (settingsService.headerTabVisibility().expenses) {

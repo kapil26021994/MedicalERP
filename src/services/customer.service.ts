@@ -15,6 +15,7 @@ export class CustomerService {
   customers = signal<Customer[]>([]);
   isLoaded = signal(false);
   isLoading = signal(false);
+  private requestVersion = 0;
 
   constructor() {
     // In-memory only
@@ -52,16 +53,52 @@ export class CustomerService {
     this.isLoaded.set(true);
   }
 
+  clearAccountData(): void {
+    this.requestVersion++;
+    this.customers.set([]);
+    this.isLoaded.set(false);
+    this.isLoading.set(false);
+  }
+
   // Fetch customers from API / Supabase DB
   async fetchCustomers(force: boolean = false) {
     if (!force && this.isLoaded()) return;
+    const requestVersion = this.requestVersion;
     this.isLoading.set(true);
 
     const supabase = this.supabaseService.client();
     if (this.supabaseService.isConfigured() && supabase) {
+      const currentUserId = this.supabaseService.currentUser()?.id;
+      if (currentUserId) {
+        try {
+          let query = supabase.from('customers').select('*').eq('user_id', currentUserId);
+          const { data, error } = await query.order('created_at', { ascending: false });
+          if (!error && data) {
+             if (requestVersion !== this.requestVersion) return;
+             const mapped = data.map(d => ({
+                id: d.id,
+                name: d.name,
+                phone: d.phone,
+                email: d.email,
+                dueAmount: d.due_amount || 0,
+                paidAmount: d.paid_amount || 0,
+                notes: d.notes,
+                purchaseHistory: d.purchase_history || []
+             }));
+             this.customers.set(mapped);
+             this.isLoaded.set(true);
+             this.isLoading.set(false);
+             return;
+          }
+        } catch (e) {
+          if (requestVersion !== this.requestVersion) return;
+          this.isLoading.set(false);
+        }
+      }
       try {
         const { data, error } = await supabase.from('customers').select('*').order('created_at', { ascending: false });
         if (!error && data) {
+           if (requestVersion !== this.requestVersion) return;
            const mapped = data.map(d => ({
               id: d.id,
               name: d.name,
@@ -78,12 +115,14 @@ export class CustomerService {
            return;
         }
       } catch (e) {
+        if (requestVersion !== this.requestVersion) return;
         this.isLoading.set(false);
       }
     }
 
     this.http.get<any>(this.apiUrl).subscribe({
       next: (res) => {
+        if (requestVersion !== this.requestVersion) return;
         const data = Array.isArray(res) ? res : res?.customers;
         if (Array.isArray(data)) {
           this.customers.set(data);
@@ -92,6 +131,7 @@ export class CustomerService {
         this.isLoading.set(false);
       },
       error: () => {
+        if (requestVersion !== this.requestVersion) return;
         this.isLoading.set(false);
       }
     });
@@ -145,7 +185,8 @@ export class CustomerService {
 
     // Also store in Supabase DB directly if available
     const supabase = this.supabaseService.client();
-    if (this.supabaseService.isConfigured() && supabase) {
+    const currentUserId = this.supabaseService.currentUser()?.id;
+    if (this.supabaseService.isConfigured() && supabase && currentUserId) {
       try {
         await supabase.from('customers').insert([{
           id: newCustomer.id,
@@ -155,7 +196,8 @@ export class CustomerService {
           due_amount: newCustomer.dueAmount,
           paid_amount: newCustomer.paidAmount,
           notes: newCustomer.notes,
-          created_at: new Date().toISOString()
+          created_at: new Date().toISOString(),
+          user_id: currentUserId
         }]);
       } catch (e) {}
     }
@@ -179,7 +221,8 @@ export class CustomerService {
     });
 
     const supabase = this.supabaseService.client();
-    if (this.supabaseService.isConfigured() && supabase) {
+    const currentUserId = this.supabaseService.currentUser()?.id;
+    if (this.supabaseService.isConfigured() && supabase && currentUserId) {
       try {
         await supabase.from('customers').update({
           name: updatedCustomer.name,
@@ -187,8 +230,9 @@ export class CustomerService {
           email: updatedCustomer.email,
           due_amount: updatedCustomer.dueAmount,
           paid_amount: updatedCustomer.paidAmount,
-          notes: updatedCustomer.notes
-        }).eq('id', updatedCustomer.id);
+          notes: updatedCustomer.notes,
+          user_id: currentUserId
+        }).eq('id', updatedCustomer.id).eq('user_id', currentUserId);
       } catch (e) {}
     }
   }
@@ -202,9 +246,10 @@ export class CustomerService {
     } catch (e) {}
 
     const supabase = this.supabaseService.client();
-    if (this.supabaseService.isConfigured() && supabase) {
+    const currentUserId = this.supabaseService.currentUser()?.id;
+    if (this.supabaseService.isConfigured() && supabase && currentUserId) {
       try {
-        await supabase.from('customers').delete().eq('id', customerId);
+        await supabase.from('customers').delete().eq('id', customerId).eq('user_id', currentUserId);
       } catch (e) {}
     }
   }

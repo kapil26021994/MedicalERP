@@ -7,6 +7,7 @@ import { CustomerService } from '../../services/customer.service';
 import { InvoiceService } from '../../services/invoice.service';
 import { CartService, ParkedTransaction } from '../../services/cart.service';
 import { PdfExportService } from '../../services/pdf-export.service';
+import { ToastService } from '../../services/toast.service';
 import { TranslationService } from '../../services/translation.service';
 import { LoaderComponent } from '../layout/loader.component';
 import { Product } from '../../models/product.model';
@@ -32,6 +33,7 @@ export class PosComponent implements OnInit, OnDestroy {
   invoiceService = inject(InvoiceService);
   cartService = inject(CartService);
   pdfExportService = inject(PdfExportService);
+  private toastService = inject(ToastService);
   public ts = inject(TranslationService);
   private router = inject(Router);
   private fb: FormBuilder = inject(FormBuilder);
@@ -266,6 +268,7 @@ export class PosComponent implements OnInit, OnDestroy {
 
     // Save invoice & deduct product stock (centrally handled by InvoiceService)
     await this.invoiceService.addInvoice(newInvoice);
+    this.toastService.success(`Sale ${newInvoice.id} completed.`);
 
     this.showCheckoutModal.set(false);
     this.cartService.clearCart();

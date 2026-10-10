@@ -2,9 +2,10 @@
 import { Component, ChangeDetectionStrategy, inject, OnInit, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
-import { HEADER_TABS, HeaderTabId, SettingsService } from '../../services/settings.service';
+import { BusinessProfile, HEADER_TABS, HeaderTabId, HeaderTabVisibility, SettingsService } from '../../services/settings.service';
 import { SupabaseService } from '../../services/supabase.service';
 import { TranslationService, Language } from '../../services/translation.service';
+import { ToastService } from '../../services/toast.service';
 
 @Component({
   selector: 'app-settings',
@@ -17,12 +18,15 @@ export class SettingsComponent implements OnInit {
   settingsService = inject(SettingsService);
   supabaseService = inject(SupabaseService);
   ts = inject(TranslationService);
+  private toastService = inject(ToastService);
 
   showImportConfirmation = signal(false);
   importFile = signal<File | null>(null);
   supabaseSaveMsg = signal<string | null>(null);
   selectedLanguage = signal<Language>('en');
   headerTabs = HEADER_TABS;
+  headerTabDraft = signal<HeaderTabVisibility>({ ...this.settingsService.headerTabVisibility() });
+  hasUnsavedHeaderTabChanges = signal(false);
 
 
   settingsForm = this.fb.group({
@@ -109,6 +113,25 @@ CREATE TABLE IF NOT EXISTS public.purchases (
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
+CREATE TABLE IF NOT EXISTS public.challans (
+  id VARCHAR(100) PRIMARY KEY,
+  user_id UUID NOT NULL DEFAULT auth.uid() REFERENCES auth.users(id) ON DELETE CASCADE,
+  challan_number VARCHAR(100) NOT NULL,
+  customer_name VARCHAR(255) NOT NULL,
+  customer_phone VARCHAR(50) DEFAULT '',
+  challan_date TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  due_date TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  status VARCHAR(50) DEFAULT 'Open',
+  items JSONB NOT NULL,
+  total_amount NUMERIC(12,2) NOT NULL DEFAULT 0.00,
+  paid_amount NUMERIC(12,2) NOT NULL DEFAULT 0.00,
+  notes TEXT DEFAULT '',
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+ALTER TABLE public.challans ADD COLUMN IF NOT EXISTS user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE;
+ALTER TABLE public.challans ADD COLUMN IF NOT EXISTS paid_amount NUMERIC(12,2) NOT NULL DEFAULT 0.00;
+
 CREATE TABLE IF NOT EXISTS public.procurement_items (
   id VARCHAR(100) PRIMARY KEY,
   purchase_id VARCHAR(100) NOT NULL,
@@ -138,35 +161,64 @@ CREATE TABLE IF NOT EXISTS public.inventory_logs (
   date TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
--- Enable Row Level Security (RLS) & Add Permissions
-ALTER TABLE public.expenses ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.customers ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.products ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.invoices ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.purchases ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.procurement_items ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.inventory_logs ENABLE ROW LEVEL SECURITY;
+CREATE TABLE IF NOT EXISTS public.settings (
+  id INT PRIMARY KEY DEFAULT 1,
+  business_name VARCHAR(255) DEFAULT 'Advika ERP',
+  phone VARCHAR(50) DEFAULT '',
+  email VARCHAR(255) DEFAULT '',
+  address TEXT DEFAULT '',
+  gstin VARCHAR(100) DEFAULT '',
+  currency_symbol VARCHAR(10) DEFAULT '₹',
+  receipt_footer TEXT DEFAULT ''
+);
 
-DROP POLICY IF EXISTS "Allow all on expenses" ON public.expenses;
-CREATE POLICY "Allow all on expenses" ON public.expenses FOR ALL USING (true) WITH CHECK (true);
+CREATE TABLE IF NOT EXISTS public.account_settings (
+  user_id UUID PRIMARY KEY DEFAULT auth.uid() REFERENCES auth.users(id) ON DELETE CASCADE,
+  profile JSONB NOT NULL DEFAULT '{}'::jsonb,
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
 
-DROP POLICY IF EXISTS "Allow all on customers" ON public.customers;
-CREATE POLICY "Allow all on customers" ON public.customers FOR ALL USING (true) WITH CHECK (true);
+-- Existing rows deliberately remain unowned (NULL) and are hidden until ownership is verified.
+DO $$
+DECLARE
+  target_table TEXT;
+  policy_record RECORD;
+BEGIN
+  FOREACH target_table IN ARRAY ARRAY[
+    'customers', 'products', 'invoices', 'purchases', 'expenses',
+    'procurement_items', 'inventory_logs', 'challans', 'settings', 'account_settings'
+  ] LOOP
+    EXECUTE format(
+      'ALTER TABLE public.%I ADD COLUMN IF NOT EXISTS user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE',
+      target_table
+    );
+    EXECUTE format('ALTER TABLE public.%I ALTER COLUMN user_id SET DEFAULT auth.uid()', target_table);
+    EXECUTE format('ALTER TABLE public.%I ENABLE ROW LEVEL SECURITY', target_table);
 
-DROP POLICY IF EXISTS "Allow all on products" ON public.products;
-CREATE POLICY "Allow all on products" ON public.products FOR ALL USING (true) WITH CHECK (true);
+    FOR policy_record IN
+      SELECT policyname
+      FROM pg_policies
+      WHERE schemaname = 'public' AND tablename = target_table
+    LOOP
+      EXECUTE format('DROP POLICY %I ON public.%I', policy_record.policyname, target_table);
+    END LOOP;
 
-DROP POLICY IF EXISTS "Allow all on invoices" ON public.invoices;
-CREATE POLICY "Allow all on invoices" ON public.invoices FOR ALL USING (true) WITH CHECK (true);
+    EXECUTE format(
+      'CREATE POLICY %I ON public.%I FOR ALL TO authenticated USING (user_id = auth.uid()) WITH CHECK (user_id = auth.uid())',
+      'Users can manage own ' || target_table,
+      target_table
+    );
+  END LOOP;
+END $$;
 
-DROP POLICY IF EXISTS "Allow all on purchases" ON public.purchases;
-CREATE POLICY "Allow all on purchases" ON public.purchases FOR ALL USING (true) WITH CHECK (true);
+ALTER TABLE public.products DROP CONSTRAINT IF EXISTS products_sku_key;
+DROP INDEX IF EXISTS public.idx_products_unique_name;
+CREATE UNIQUE INDEX IF NOT EXISTS idx_products_user_name
+  ON public.products (user_id, LOWER(TRIM(name)));
+CREATE UNIQUE INDEX IF NOT EXISTS idx_products_user_sku
+  ON public.products (user_id, UPPER(TRIM(sku)));
 
-DROP POLICY IF EXISTS "Allow all on procurement_items" ON public.procurement_items;
-CREATE POLICY "Allow all on procurement_items" ON public.procurement_items FOR ALL USING (true) WITH CHECK (true);
-
-DROP POLICY IF EXISTS "Allow all on inventory_logs" ON public.inventory_logs;
-CREATE POLICY "Allow all on inventory_logs" ON public.inventory_logs FOR ALL USING (true) WITH CHECK (true);`;
+NOTIFY pgrst, 'reload schema';`;
 
   copySql() {
     navigator.clipboard.writeText(this.sqlScript);
@@ -184,9 +236,12 @@ CREATE POLICY "Allow all on inventory_logs" ON public.inventory_logs FOR ALL USI
   }
 
   setHeaderTabVisibility(tabId: HeaderTabId, event: Event): void {
-    this.settingsService.setHeaderTabVisibility(
-      tabId,
-      (event.target as HTMLInputElement).checked
+    const visible = (event.target as HTMLInputElement).checked;
+    this.headerTabDraft.update(current => ({ ...current, [tabId]: visible }));
+    this.hasUnsavedHeaderTabChanges.set(
+      HEADER_TABS.some(tab =>
+        this.headerTabDraft()[tab.id] !== this.settingsService.headerTabVisibility()[tab.id]
+      )
     );
   }
 
@@ -194,9 +249,18 @@ CREATE POLICY "Allow all on inventory_logs" ON public.inventory_logs FOR ALL USI
     if (this.settingsForm.invalid) {
       return;
     }
+    this.settingsService.saveHeaderTabVisibility(this.headerTabDraft());
+    this.hasUnsavedHeaderTabChanges.set(false);
     this.ts.setLanguage(this.selectedLanguage());
-    this.settingsService.updateProfile(this.settingsForm.getRawValue());
-    alert('Settings saved successfully!');
+    const formValue = this.settingsForm.getRawValue();
+    const profile: BusinessProfile = {
+      ...this.settingsService.businessProfile(),
+      shopName: formValue.shopName ?? '',
+      shopAddress: formValue.shopAddress ?? '',
+      shopPhone: formValue.shopPhone ?? ''
+    };
+    this.settingsService.updateProfile(profile);
+    this.toastService.success('Settings saved successfully.');
   }
 
   saveSupabaseConfig() {
@@ -206,8 +270,9 @@ CREATE POLICY "Allow all on inventory_logs" ON public.inventory_logs FOR ALL USI
     if (result.success) {
       this.supabaseSaveMsg.set('Supabase configuration updated successfully!');
       setTimeout(() => this.supabaseSaveMsg.set(null), 4000);
+      this.toastService.success('Supabase configuration updated.');
     } else {
-      alert(result.error || 'Failed to save configuration.');
+      this.toastService.error(result.error || 'Failed to save configuration.');
     }
   }
 
@@ -216,6 +281,7 @@ CREATE POLICY "Allow all on inventory_logs" ON public.inventory_logs FOR ALL USI
     this.supabaseForm.reset({ url: '', anonKey: '' });
     this.supabaseSaveMsg.set('Supabase credentials cleared.');
     setTimeout(() => this.supabaseSaveMsg.set(null), 4000);
+    this.toastService.success('Supabase credentials cleared.');
   }
 
   exportAppData() {
@@ -235,9 +301,11 @@ CREATE POLICY "Allow all on inventory_logs" ON public.inventory_logs FOR ALL USI
     const file = this.importFile();
     if (file) {
       this.settingsService.importData(file).then(() => {
-        window.location.reload();
+        this.toastService.success('Data imported successfully.');
+        setTimeout(() => window.location.reload(), 1200);
       }).catch(err => {
         console.error("Import failed in component", err);
+        this.toastService.error(err instanceof Error ? err.message : 'Failed to import data.');
       }).finally(() => {
         this.showImportConfirmation.set(false);
         this.importFile.set(null);
@@ -249,10 +317,10 @@ CREATE POLICY "Allow all on inventory_logs" ON public.inventory_logs FOR ALL USI
     if (confirm('CRITICAL ACTION: This will permanently delete all records (Invoices, Purchases, Products, Customers, Expenses) from both local storage and Supabase. This cannot be undone. Are you absolutely sure?')) {
       const result = await this.settingsService.resetDatabase();
       if (result.success) {
-        alert(result.message || 'Database reset successfully.');
-        window.location.reload();
+        this.toastService.success(result.message || 'Database reset successfully.');
+        setTimeout(() => window.location.reload(), 1200);
       } else {
-        alert('Error: ' + result.error);
+        this.toastService.error(result.error || 'Failed to reset database.');
       }
     }
   }

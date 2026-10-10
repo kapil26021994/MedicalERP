@@ -1,12 +1,14 @@
+<app-toast-container></app-toast-container>
+
 @if (isAuthOrLanding() || !supabaseService.isAuthenticated()) {
   <router-outlet></router-outlet>
 } @else {
   <div class="min-h-screen flex flex-col bg-slate-100/80 font-sans antialiased text-slate-800 relative">
     
     <!-- Top Navigation Tabs Bar -->
-    <nav class="bg-white border-b border-slate-200 shadow-sm sticky top-0 z-40 px-2 sm:px-4 py-2 flex flex-wrap items-center justify-between gap-y-2">
+    <nav class="bg-white border-b border-slate-200 shadow-sm sticky top-0 z-40 px-2 sm:px-4 py-2 flex flex-nowrap items-center gap-2">
       
-      <div class="contents md:flex md:items-center md:gap-3 md:overflow-hidden">
+      <div class="flex min-w-0 flex-1 items-center gap-1.5 md:gap-3">
         <!-- Brand -->
         <a routerLink="/dashboard" class="flex items-center gap-2 group shrink-0">
           <div class="h-8 w-8 rounded-lg bg-blue-600 flex items-center justify-center text-white shadow-sm shadow-blue-500/30 group-hover:bg-blue-500 transition-colors">
@@ -23,7 +25,7 @@
         <div class="h-5 w-px bg-slate-200 hidden md:block shrink-0 mx-1"></div>
 
         <!-- Navigation Tabs -->
-        <div class="order-3 basis-full min-w-0 flex items-center gap-1 overflow-x-auto no-scrollbar scroll-smooth md:order-none md:basis-auto">
+        <div class="min-w-0 flex-1 flex items-center gap-1 overflow-x-auto no-scrollbar scroll-smooth">
           @for (tab of navTabs(); track tab.path) {
             <a [routerLink]="tab.path"
                routerLinkActive="active-nav-tab"
@@ -44,11 +46,11 @@
       </div>
 
       <!-- Right: Action Buttons & Profile -->
-      <div class="order-2 ml-auto flex items-center gap-1.5 sm:gap-2 shrink-0 pl-1 md:order-none md:ml-0 md:pl-2">
+      <div class="flex shrink-0 items-center gap-1 sm:gap-2 pl-1 md:pl-2">
         
         <!-- Language Selector Dropdown -->
         <div class="relative">
-          <button (click)="toggleLangMenu()" class="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-xs transition-all border border-slate-200">
+          <button (click)="toggleLangMenu()" class="flex items-center gap-1 px-1.5 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-[10px] sm:gap-1.5 sm:px-2.5 sm:text-xs transition-all border border-slate-200">
             <span class="text-sm">🌐</span>
             <span>{{ ts.currentLang() === 'hi' ? 'हिंदी' : 'English' }}</span>
             <span class="material-icons-outlined text-xs text-slate-500">expand_more</span>
@@ -70,7 +72,7 @@
         </div>
 
         <!-- Quick Create Dropdown Button -->
-        <div class="relative hidden sm:block">
+        <!-- <div class="relative hidden sm:block">
           <button (click)="toggleQuickMenu()" class="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-blue-50 text-blue-700 hover:bg-blue-100 font-bold text-xs transition-all border border-blue-200">
             <span class="material-icons-outlined text-sm">add</span>
             <span>{{ ts.t('header.new') }}</span>
@@ -97,7 +99,7 @@
               </a>
             </div>
           }
-        </div>
+        </div> -->
 
         <div class="h-5 w-px bg-slate-200 hidden sm:block mx-1"></div>
 

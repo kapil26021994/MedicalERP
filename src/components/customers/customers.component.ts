@@ -7,6 +7,7 @@ import { CustomerService } from '../../services/customer.service';
 import { InvoiceService } from '../../services/invoice.service';
 import { TranslationService } from '../../services/translation.service';
 import { ConfirmationService } from '../../services/confirmation.service';
+import { ToastService } from '../../services/toast.service';
 import { LoaderComponent } from '../layout/loader.component';
 
 @Component({
@@ -27,6 +28,7 @@ export class CustomersComponent implements OnInit {
   invoiceService = inject(InvoiceService);
   public ts = inject(TranslationService);
   private confirmationService = inject(ConfirmationService);
+  private toastService = inject(ToastService);
 
   showModal = signal(false);
   editingCustomer = signal<Customer | null>(null);
@@ -193,6 +195,7 @@ export class CustomersComponent implements OnInit {
 
     if (confirmed) {
       await this.customerService.deleteCustomer(customer.id);
+      this.toastService.success(`Customer "${customer.name}" deleted.`);
     }
   }
 
@@ -241,6 +244,7 @@ export class CustomersComponent implements OnInit {
         await this.customerService.deleteCustomer(id);
       }
       this.selectedIds.set(new Set());
+      this.toastService.success(`${ids.length} customer${ids.length === 1 ? '' : 's'} deleted.`);
     }
   }
 
@@ -254,6 +258,7 @@ export class CustomersComponent implements OnInit {
 
     if (confirmed) {
       await this.customerService.deleteAllCustomers();
+      this.toastService.success('All customers deleted.');
     }
   }
 
@@ -269,9 +274,11 @@ export class CustomersComponent implements OnInit {
       if (this.editingCustomer()) {
         const updatedCustomer = { ...this.editingCustomer()!, ...formValue } as Customer;
         await this.customerService.updateCustomer(updatedCustomer);
+        this.toastService.success('Customer updated.');
       } else {
         const { id, ...newCustomerData } = formValue;
         await this.customerService.addCustomer(newCustomerData as Omit<Customer, 'id' | 'purchaseHistory'>);
+        this.toastService.success('Customer added.');
       }
       this.closeModal();
     } catch (err: any) {

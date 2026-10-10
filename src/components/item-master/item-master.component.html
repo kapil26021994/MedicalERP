@@ -22,21 +22,39 @@
                    aria-label="Search inventory"
                    class="w-full pl-10 pr-4 py-2.5 bg-white border border-slate-200 focus:border-indigo-500 rounded-xl text-xs font-semibold text-slate-900 placeholder-slate-400 outline-none transition-all">
           </div>
-          <span class="px-3 py-2 bg-indigo-50 border border-indigo-100 text-indigo-700 rounded-xl text-xs font-black whitespace-nowrap">
-            {{ filteredProcurementItems().length }} Items found
-          </span>
+          <div class="flex items-center gap-2">
+            <span class="px-3 py-2 bg-indigo-50 border border-indigo-100 text-indigo-700 rounded-xl text-xs font-black whitespace-nowrap">
+              {{ filteredProcurementItems().length }} Items found
+            </span>
+            @if (selectedItemCount() > 0) {
+              <button type="button"
+                      (click)="onDeleteSelected()"
+                      [disabled]="isDeleting()"
+                      class="px-3 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-black whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed">
+                {{ isDeleting() ? 'Deleting...' : 'Delete selected (' + selectedItemCount() + ')' }}
+              </button>
+            }
+          </div>
         </div>
       </div>
 
       <div class="max-h-[70vh] overflow-auto">
-        <table class="w-full min-w-[1100px] text-left border-collapse">
+        <table class="w-full min-w-[1140px] text-left border-collapse">
           <thead class="sticky top-0 z-10">
             <tr class="bg-slate-100/90 border-y border-slate-200 text-[11px] font-extrabold text-slate-700 uppercase tracking-wider select-none">
+              <th class="py-3 px-3 text-center">
+                <input type="checkbox"
+                       aria-label="Select all filtered inventory items"
+                       [checked]="isAllSelected()"
+                       [indeterminate]="isSomeSelected()"
+                       (change)="toggleSelectAll()"
+                       class="h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500">
+              </th>
               <th class="py-3 px-3.5 pl-5"><button type="button" (click)="sortInventoryBy('productName')" class="inline-flex items-center gap-1 hover:text-indigo-700" aria-label="Sort by product name">Product Name & SKU <span class="material-icons-outlined text-sm">{{ sortIcon('productName') }}</span></button></th>
               <th class="py-3 px-3"><button type="button" (click)="sortInventoryBy('supplier')" class="inline-flex items-center gap-1 hover:text-indigo-700" aria-label="Sort by supplier">Supplier <span class="material-icons-outlined text-sm">{{ sortIcon('supplier') }}</span></button></th>
               <th class="py-3 px-3 text-center"><button type="button" (click)="sortInventoryBy('purchaseDate')" class="inline-flex items-center gap-1 hover:text-indigo-700" aria-label="Sort by purchase date">Purchase Date <span class="material-icons-outlined text-sm">{{ sortIcon('purchaseDate') }}</span></button></th>
               <th class="py-3 px-3 text-center"><button type="button" (click)="sortInventoryBy('batchNo')" class="inline-flex items-center gap-1 hover:text-indigo-700" aria-label="Sort by batch">Batch / Expiry Date <span class="material-icons-outlined text-sm">{{ sortIcon('batchNo') }}</span></button></th>
-              <th class="py-3 px-3 text-center"><button type="button" (click)="sortInventoryBy('quantity')" class="inline-flex items-center gap-1 hover:text-indigo-700" aria-label="Sort by quantity">Quantity <span class="material-icons-outlined text-sm">{{ sortIcon('quantity') }}</span></button></th>
+              <th class="py-3 px-3 text-center"><button type="button" (click)="sortInventoryBy('quantity')" class="inline-flex items-center gap-1 hover:text-indigo-700" aria-label="Sort by purchased quantity">Purchased Qty <span class="material-icons-outlined text-sm">{{ sortIcon('quantity') }}</span></button></th>
               <th class="py-3 px-3 text-center"><button type="button" (click)="sortInventoryBy('soldQuantity')" class="inline-flex items-center gap-1 hover:text-indigo-700" aria-label="Sort by quantity sold">Sold to Customers <span class="material-icons-outlined text-sm">{{ sortIcon('soldQuantity') }}</span></button></th>
               <th class="py-3 px-3 text-center"><button type="button" (click)="sortInventoryBy('currentStock')" class="inline-flex items-center gap-1 hover:text-indigo-700" aria-label="Sort by remaining stock">Remaining Stock <span class="material-icons-outlined text-sm">{{ sortIcon('currentStock') }}</span></button></th>
               <th class="py-3 px-3 text-center"><button type="button" (click)="sortInventoryBy('stockStatus')" class="inline-flex items-center gap-1 hover:text-indigo-700" aria-label="Sort by stock status">Stock Status <span class="material-icons-outlined text-sm">{{ sortIcon('stockStatus') }}</span></button></th>
@@ -47,6 +65,13 @@
           <tbody class="divide-y divide-slate-100 text-xs">
             @for (item of filteredProcurementItems(); track item.inventoryKey) {
               <tr class="hover:bg-slate-50/80 transition-colors" [class.bg-rose-50/20]="item.stockStatus === 'sold_out'">
+                <td class="py-3 px-3 text-center">
+                  <input type="checkbox"
+                         [attr.aria-label]="'Select ' + (item.productName || item.product_name || 'inventory item')"
+                         [checked]="isItemSelected(item.inventoryKey)"
+                         (change)="toggleSelectItem(item.inventoryKey)"
+                         class="h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500">
+                </td>
                 <td class="py-3 px-3.5 pl-5">
                   <div class="font-black text-slate-900 text-sm">{{ item.productName || item.product_name }}</div>
                   <div class="text-[10px] text-slate-500 font-mono font-bold">SKU: {{ item.sku || 'N/A' }}</div>
