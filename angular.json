@@ -78,6 +78,30 @@
             }
           },
           "defaultConfiguration": "development"
+        },
+        "test": {
+          "builder": "@angular/build:unit-test",
+          "options": {
+            "tsConfig": "tsconfig.spec.json",
+            "runner": "vitest",
+            "runnerConfig": "vitest.config.ts",
+            "coverage": true,
+            "coverageInclude": [
+              "src/app.component.ts",
+              "src/components/**/*.component.ts"
+            ],
+            "coverageReporters": [
+              "text",
+              "html",
+              "json-summary"
+            ],
+            "coverageThresholds": {
+              "statements": 81,
+              "branches": 81,
+              "functions": 81,
+              "lines": 81
+            }
+          }
         }
       }
     }

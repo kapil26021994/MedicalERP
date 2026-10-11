@@ -8,6 +8,7 @@
     "api": "npm run build && node --env-file-if-exists=.env api.ts",
     "start": "node --env-file-if-exists=.env server.ts",
     "lint": "tsc --noEmit",
+    "test": "ng test --watch=false",
     "build": "ng build && node postbuild.js",
     "preview": "ng serve --host 0.0.0.0 --port 3000 --configuration=production"
   },
@@ -45,7 +46,10 @@
     "@tailwindcss/postcss": "^4.3.3",
     "@types/express": "^5.0.6",
     "@types/node": "^22.14.0",
+    "@vitest/coverage-v8": "^4.0.8",
+    "jsdom": "^29.1.1",
     "postcss": "^8.5.28",
-    "typescript": "~5.9.0"
+    "typescript": "~5.9.0",
+    "vitest": "^4.0.8"
   }
 }
